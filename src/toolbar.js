@@ -1,0 +1,213 @@
+import { ICONS } from './icons.js';
+import { getClosestBlock, findParentTag } from './selection.js';
+
+/**
+ * Default toolbar button configuration.
+ * Groups are separated by '|'.
+ */
+export const DEFAULT_TOOLBAR = [
+  'bold', 'italic', 'underline', 'strikethrough',
+  '|',
+  'heading',
+  '|',
+  'unorderedList', 'orderedList', 'blockquote', 'codeBlock',
+  '|',
+  'link', 'image',
+  '|',
+  'undo', 'redo',
+  '|',
+  'clearFormatting',
+];
+
+/**
+ * Button metadata: label, icon, command, type.
+ */
+const BUTTON_DEFS = {
+  bold:           { label: 'Bold',           icon: 'bold',          command: 'bold',           type: 'inline', tag: 'strong',     shortcut: 'Ctrl+B' },
+  italic:         { label: 'Italic',         icon: 'italic',        command: 'italic',         type: 'inline', tag: 'em',         shortcut: 'Ctrl+I' },
+  underline:      { label: 'Underline',      icon: 'underline',     command: 'underline',      type: 'inline', tag: 'u',          shortcut: 'Ctrl+U' },
+  strikethrough:  { label: 'Strikethrough',  icon: 'strikethrough', command: 'strikethrough',  type: 'inline', tag: 's' },
+  heading:        { label: 'Heading',        icon: 'heading',       command: null,             type: 'dropdown' },
+  unorderedList:  { label: 'Bullet List',    icon: 'unorderedList', command: 'unorderedList',  type: 'block',  tag: 'ul' },
+  orderedList:    { label: 'Numbered List',  icon: 'orderedList',   command: 'orderedList',    type: 'block',  tag: 'ol' },
+  blockquote:     { label: 'Quote',          icon: 'blockquote',    command: 'blockquote',     type: 'block',  tag: 'blockquote' },
+  codeBlock:      { label: 'Code Block',     icon: 'codeBlock',     command: 'codeBlock',      type: 'block',  tag: 'pre' },
+  link:           { label: 'Link',           icon: 'link',          command: 'link',           type: 'prompt' },
+  image:          { label: 'Image',          icon: 'image',         command: 'image',          type: 'prompt' },
+  undo:           { label: 'Undo',           icon: 'undo',          command: 'undo',           type: 'action',                    shortcut: 'Ctrl+Z' },
+  redo:           { label: 'Redo',           icon: 'redo',          command: 'redo',           type: 'action',                    shortcut: 'Ctrl+Shift+Z' },
+  clearFormatting:{ label: 'Clear Format',   icon: 'clearFormat',   command: 'clearFormatting',type: 'action' },
+};
+
+const HEADING_OPTIONS = [
+  { label: 'Heading 1', command: 'h1', tag: 'h1' },
+  { label: 'Heading 2', command: 'h2', tag: 'h2' },
+  { label: 'Heading 3', command: 'h3', tag: 'h3' },
+  { label: 'Heading 4', command: 'h4', tag: 'h4' },
+  { label: 'Paragraph', command: 'paragraph', tag: 'p' },
+];
+
+export class Toolbar {
+  #container;
+  #editor;          // editor instance (has exec, contentEl)
+  #buttons = {};    // name → { el, def }
+  #dropdown = null; // heading dropdown element
+
+  constructor(editor, toolbarItems = DEFAULT_TOOLBAR) {
+    this.#editor = editor;
+    this.#container = document.createElement('div');
+    this.#container.className = 'flex flex-wrap items-center gap-0.5 p-1.5 border-b border-gray-200 bg-gray-50 rounded-t-lg';
+    this.#container.setAttribute('role', 'toolbar');
+
+    this.#buildButtons(toolbarItems);
+  }
+
+  get element() {
+    return this.#container;
+  }
+
+  #buildButtons(items) {
+    for (const item of items) {
+      if (item === '|') {
+        const sep = document.createElement('div');
+        sep.className = 'w-px h-6 bg-gray-300 mx-1';
+        this.#container.appendChild(sep);
+        continue;
+      }
+
+      const def = BUTTON_DEFS[item];
+      if (!def) continue;
+
+      if (def.type === 'dropdown') {
+        this.#createDropdown(item, def);
+      } else {
+        this.#createButton(item, def);
+      }
+    }
+  }
+
+  #createButton(name, def) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'p-1.5 rounded hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900 flex items-center justify-center';
+    btn.innerHTML = ICONS[def.icon] || def.label;
+    btn.title = def.shortcut ? `${def.label} (${def.shortcut})` : def.label;
+    btn.setAttribute('data-command', name);
+
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Don't steal focus from editor
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (def.type === 'prompt' && def.command === 'link') {
+        const url = prompt('Enter URL:');
+        if (url) this.#editor.exec('link', url);
+      } else if (def.type === 'prompt' && def.command === 'image') {
+        const src = prompt('Enter image URL:');
+        if (src) this.#editor.exec('image', src);
+      } else {
+        this.#editor.exec(def.command);
+      }
+    });
+
+    this.#buttons[name] = { el: btn, def };
+    this.#container.appendChild(btn);
+  }
+
+  #createDropdown(name, def) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'flex items-center gap-0.5 p-1.5 rounded hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900';
+    btn.innerHTML = `${ICONS[def.icon]}${ICONS.chevronDown}`;
+    btn.title = def.label;
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] z-[100] hidden';
+
+    const headingButtons = [];
+    for (const opt of HEADING_OPTIONS) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors flex items-center whitespace-nowrap';
+      item.textContent = opt.label;
+      item.setAttribute('data-command', opt.command);
+      item.setAttribute('data-tag', opt.tag);
+
+      item.addEventListener('mousedown', (e) => e.preventDefault());
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.#editor.exec(opt.command);
+        dropdown.classList.add('hidden');
+      });
+
+      dropdown.appendChild(item);
+      headingButtons.push({ el: item, tag: opt.tag });
+    }
+
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      dropdown.classList.toggle('hidden');
+    });
+
+    // Close dropdown on outside click
+    const closeOnOutside = (e) => {
+      if (!wrapper.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    };
+    document.addEventListener('click', closeOnOutside);
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(dropdown);
+    this.#buttons[name] = { el: btn, def, dropdownItems: headingButtons };
+    this.#container.appendChild(wrapper);
+  }
+
+  /**
+   * Update button active states based on current selection.
+   * Called on every selectionchange event.
+   */
+  updateState(editorRoot) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    const node = sel.anchorNode;
+    if (!node || !editorRoot.contains(node)) return;
+
+    const block = getClosestBlock(node, editorRoot);
+    const blockTag = block ? block.tagName.toLowerCase() : 'p';
+
+    for (const { el, def, dropdownItems } of Object.values(this.#buttons)) {
+      if (def.type === 'inline') {
+        const isActive = !!findParentTag(node, def.tag, editorRoot);
+        el.classList.toggle('bg-gray-200', isActive);
+        el.classList.toggle('text-blue-600', isActive);
+      }
+
+      if (def.type === 'block') {
+        let isActive = false;
+        if (def.tag === 'ul' || def.tag === 'ol') {
+          isActive = block?.tagName === 'LI' && block.parentElement?.tagName === def.tag.toUpperCase();
+        } else {
+          isActive = blockTag === def.tag;
+        }
+        el.classList.toggle('bg-gray-200', isActive);
+        el.classList.toggle('text-blue-600', isActive);
+      }
+
+      // Handle dropdown item highlighting
+      if (dropdownItems) {
+        for (const item of dropdownItems) {
+          const isActive = blockTag === item.tag;
+          item.el.classList.toggle('bg-gray-100', isActive);
+          item.el.classList.toggle('text-blue-600', isActive);
+        }
+      }
+    }
+  }
+}

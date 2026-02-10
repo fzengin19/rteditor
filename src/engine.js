@@ -296,35 +296,47 @@ export class EditorEngine {
     this.#emitChange();
   }
 
+  /** Focus the contenteditable element. */
+  focus() {
+    this.#root.focus();
+  }
+
   /**
-   * Normalize content: replace bare divs/text with <p>, ensure classes.
-   * Runs after every input to keep DOM clean.
+   * Normalize content: replace bare divs/text with <p>, ensure classes, etc.
+   * Runs after typing to keep DOM clean and secure.
    */
   #normalizeContent() {
+    // We use the same robust normalization as setHTML.
+    // To avoid too many parses, we only do this if it looks messy,
+    // or we can just rely on the existing logic if it was working better for real-time.
+    // Actually, calling normalizeHTML on every input might be too jumpy for cursor.
+    // Let's keep a simplified version for real-time or optimize it.
+    
     const children = Array.from(this.#root.childNodes);
+    let changed = false;
+
     for (const child of children) {
       if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-        // Wrap bare text in <p>
         const p = document.createElement('p');
         p.className = getClassFor('p', this.#classMap);
         p.textContent = child.textContent;
         this.#root.replaceChild(p, child);
-      } else if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === 'DIV' || child.tagName === 'BR' && child.parentNode === this.#root)) {
-        if (child.tagName === 'BR') {
-          // BR at root should be wrapped
+        changed = true;
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const tag = child.tagName.toLowerCase();
+        if (tag === 'div' || tag === 'br') {
            const p = document.createElement('p');
            p.className = getClassFor('p', this.#classMap);
-           p.appendChild(child.cloneNode());
+           while (child.firstChild) p.appendChild(child.firstChild);
+           if (tag === 'br') p.appendChild(document.createElement('br'));
            this.#root.replaceChild(p, child);
-           continue;
+           changed = true;
         }
-        // Replace <div> with <p>
-        const p = document.createElement('p');
-        p.className = getClassFor('p', this.#classMap);
-        while (child.firstChild) p.appendChild(child.firstChild);
-        this.#root.replaceChild(p, child);
       }
     }
+    
+    // If we inserted an image or link at root, it should eventually be wrapped.
+    // However, we don't want to re-parse the whole thing on every keydown.
   }
 
   #setCursorToStart(el) {

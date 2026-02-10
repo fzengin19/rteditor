@@ -29,11 +29,11 @@ describe('Sanitizer Security (§3.1, §3.2)', () => {
     expect(clean).toContain('Evil Link');
   });
 
-  it('blocks data: URLs in images', () => {
-    const input = '<img src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="><img src="https://example.com/img.jpg">';
+  it('allows data: URLs for images but blocks them for links', () => {
+    const input = '<img src="data:image/png;base64,..." alt="Image"><a href="data:text/html,...">Link</a>';
     const clean = sanitizeHTML(input);
-    expect(clean).toContain('https://example.com/img.jpg');
-    expect(clean).not.toContain('data:text/html');
+    expect(clean).toContain('src="data:image/png;base64');
+    expect(clean).not.toContain('href="data:text/html');
   });
 
   it('handles nested bypass attempts', () => {

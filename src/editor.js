@@ -71,7 +71,10 @@ export class RichTextEditor {
     // Create toolbar integration
     // The toolbar needs an object with an exec method
     const toolbarProxy = {
-      exec: (cmd, ...args) => this.#engine.exec(cmd, ...args),
+      exec: (cmd, ...args) => {
+        this.focus();
+        this.#engine.exec(cmd, ...args);
+      },
       contentEl: contentEl
     };
 
@@ -204,6 +207,11 @@ export class RichTextEditor {
   /** Check if editor is empty. */
   isEmpty() {
     return !this.#engine.getText().trim();
+  }
+
+  /** Focus the editor. */
+  focus() {
+    this.#engine.focus();
   }
 
   /** Destroy the editor and clean up listeners/DOM. */

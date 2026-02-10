@@ -251,7 +251,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
 
   // --- IMAGE ---
 
-  commands.set('image', (src, alt) => {
+  commands.set('image', (src, alt = '') => {
     if (!src) return;
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
@@ -259,12 +259,12 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
 
     const img = document.createElement('img');
     img.src = src;
-    img.alt = alt || '';
+    img.alt = alt;
     img.className = getClassFor('img', classMap);
 
-    // Insert after current block
+    // Insert after current block or at cursor
     const block = getClosestBlock(range.startContainer, root);
-    if (block && block.parentNode) {
+    if (block && block.parentNode && block.parentNode === root) {
       block.parentNode.insertBefore(img, block.nextSibling);
     } else {
       range.insertNode(img);

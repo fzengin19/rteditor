@@ -18,12 +18,14 @@ const ALLOWED_TAGS = new Set([
 
 // Attributes to keep per tag
 const ALLOWED_ATTRS = {
-  a:   ['href', 'target', 'rel'],
-  img: ['src', 'alt'],
+  a:   ['href', 'target', 'rel', 'title'],
+  img: ['src', 'alt', 'title', 'style'], // style is needed for resizing
 };
 
 // Dangerous URL schemes
-const BLOCKED_PROTOCOLS = /^(javascript|data|vbscript|file):/i;
+// We allow data: for images (common for pasted content) but block it for links (XSS risk).
+const BLOCKED_PROTOCOLS = /^(javascript|vbscript|file):/i;
+const BLOCKED_LINK_PROTOCOLS = /^(javascript|data|vbscript|file):/i;
 
 // Tags that count as blocks (don't need wrapping at root)
 const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote', 'pre']);
@@ -43,8 +45,8 @@ const TAG_ALIASES = {
 export function normalizeHTML(html, classMap = CLASS_MAP) {
   if (!html) return '';
   
-  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
-  const container = doc.body.firstChild;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const container = doc.body;
 
   // 1. Process all elements (sanitize, alias, strip)
   processNodes(container, classMap);
@@ -172,7 +174,8 @@ function sanitizeAttributes(el, tag) {
     // Validate URL schemes for href/src
     if (name === 'href' || name === 'src') {
       const value = attr.value.trim();
-      if (BLOCKED_PROTOCOLS.test(value)) {
+      const blocker = (name === 'href') ? BLOCKED_LINK_PROTOCOLS : BLOCKED_PROTOCOLS;
+      if (blocker.test(value)) {
         el.removeAttribute(name);
       }
     }

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTEditor — Dev Playground</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Extra styles for dev only */
+    body { background: #f3f4f6; }
+    .output-preview { font-family: monospace; white-space: pre-wrap; font-size: 13px; }
+    /* Some helpful debugging classes */
+    #editor { margin-top: 1rem; }
+  </style>
+</head>
+<body class="p-8 max-w-4xl mx-auto">
+  <header class="mb-12">
+    <h1 class="text-3xl font-bold text-gray-900">RTEditor Dev Playground</h1>
+    <p class="text-gray-600 mt-2">Experimental rich text editor for Tailwind CSS v4</p>
+  </header>
+
+  <!-- Editor Container -->
+  <section class="mb-12">
+    <h2 class="text-lg font-semibold mb-3 text-gray-700">Editor Instance</h2>
+    <div id="editor-container" class="bg-white rounded-lg shadow-sm"></div>
+  </section>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <!-- HTML Output -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-gray-700">HTML Output</h2>
+        <button id="copy-btn" class="text-xs font-semibold px-3 py-1 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 transition-colors">
+          Copy HTML
+        </button>
+      </div>
+      <div id="output" class="output-preview bg-gray-900 text-green-400 border border-gray-800 rounded-lg p-5 h-80 overflow-auto shadow-inner"></div>
+    </section>
+
+    <!-- Rendered Preview -->
+    <section>
+      <h2 class="text-lg font-semibold mb-3 text-gray-700">Live Preview</h2>
+      <div id="preview" class="bg-white border border-gray-200 rounded-lg p-6 h-80 overflow-auto shadow-sm"></div>
+    </section>
+  </div>
+
+  <footer class="mt-12 pt-6 border-t border-gray-200 text-sm text-gray-500">
+    <p>Check the browser console (Ctrl+Shift+J) for debugging tools.</p>
+  </footer>
+
+  <script type="module">
+    import { RichTextEditor } from '../src/index.js';
+
+    const outputEl = document.getElementById('output');
+    const previewEl = document.getElementById('preview');
+
+    const editor = new RichTextEditor('#editor-container', {
+      placeholder: 'Type something to see Tailwind classes in action...',
+      initialHTML: '<h1>Welcome to RTEditor</h1><p>This editor produces <strong>Tailwind CSS v4</strong> utility classes directly in the HTML output.</p><ul><li>Zero external CSS dependencies (except Tailwind)</li><li>Snapshot-based history</li><li>Secure sanitation</li></ul>',
+      onChange: (html) => {
+        outputEl.textContent = html;
+        previewEl.innerHTML = html;
+      },
+    });
+
+    // Initial output
+    outputEl.textContent = editor.getHTML();
+    previewEl.innerHTML = editor.getHTML();
+
+    // Copy button
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(editor.getHTML());
+      const btn = document.getElementById('copy-btn');
+      const originalText = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('text-green-600', 'border-green-200');
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('text-green-600', 'border-green-200');
+      }, 1500);
+    });
+
+    // Expose to console for debugging
+    window.editor = editor;
+    console.log('%cRTEditor Playground Ready!', 'color: #3b82f6; font-size: 1.2rem; font-weight: bold;');
+    console.log('Instance available at: window.editor');
+    console.log('API Commands: explorer.getHTML(), editor.setHTML("..."), editor.exec("bold")');
+  </script>
+</body>
+</html>

@@ -138,6 +138,9 @@ export class Toolbar {
 
     this.#promptOverlay = document.createElement('div');
     this.#promptOverlay.className = 'absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-lg p-2 flex gap-2 z-[200] items-center rounded-lg animate-in fade-in slide-in-from-top-1 duration-200';
+    this.#promptOverlay.setAttribute('role', 'dialog');
+    this.#promptOverlay.setAttribute('aria-modal', 'true');
+    this.#promptOverlay.setAttribute('aria-label', `Insert ${label}`);
     
     const input = document.createElement('input');
     input.type = 'text';

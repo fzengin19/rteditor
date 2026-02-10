@@ -43,9 +43,12 @@ describe('Toolbar', () => {
     const linkBtn = toolbar.element.querySelector('button[data-command="link"]');
     linkBtn.click();
     
-    // Check if prompt overlay exists
+    // Check if prompt overlay exists and has correct ARIA roles
     const overlay = toolbar.element.querySelector('input').parentElement;
     expect(overlay).not.toBeNull();
+    expect(overlay.getAttribute('role')).toBe('dialog');
+    expect(overlay.getAttribute('aria-modal')).toBe('true');
+    expect(overlay.getAttribute('aria-label')).toBe('Insert Link');
     
     // Enter URL and click apply
     const input = overlay.querySelector('input');

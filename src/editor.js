@@ -97,9 +97,13 @@ export class RichTextEditor {
     this.#setupPlaceholder();
 
     // Toolbar state tracking: update toolbar highlights on selection change
-    // Using a bound listener to allow cleanup
+    // Using a bound listener to allow cleanup, throttled with rAF
+    this._selectionRaf = null;
     this._selectionHandler = () => {
-      this.#toolbar.updateState(this.#engine.contentEl);
+      if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
+      this._selectionRaf = requestAnimationFrame(() => {
+        this.#toolbar.updateState(this.#engine.contentEl);
+      });
     };
     document.addEventListener('selectionchange', this._selectionHandler);
 
@@ -224,6 +228,7 @@ export class RichTextEditor {
 
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {
+    if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
     document.removeEventListener('selectionchange', this._selectionHandler);
     document.removeEventListener('mousedown', this._resizerCleanup);
     this.#engine.contentEl.removeEventListener('click', this.#onClick);

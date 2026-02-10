@@ -53,28 +53,40 @@ function wrapBareTextNodes(container) {
 }
 
 function processNode(container) {
-  const elements = Array.from(container.querySelectorAll('*'));
+  // Use a recursive approach or a queue to ensure nested disallowed tags are handled
+  // querySelectorAll('*') returns a static list, so we must be careful with mutations.
+  let elements = Array.from(container.querySelectorAll('*'));
+  
+  while (elements.length > 0) {
+    const el = elements.shift();
+    if (!el.parentNode) continue; // Already removed in previous iteration
 
-  for (const el of elements) {
     const tag = el.tagName.toLowerCase();
 
-    // Replace aliased tags (b→strong, i→em, etc.)
+    // 1. Replace aliased tags (b→strong, i→em, etc.)
     if (TAG_ALIASES[tag]) {
       const newEl = el.ownerDocument.createElement(TAG_ALIASES[tag]);
       while (el.firstChild) newEl.appendChild(el.firstChild);
       el.parentNode.replaceChild(newEl, el);
       applyClasses(newEl);
+      // Re-scan nested items
+      elements = Array.from(container.querySelectorAll('*'));
       continue;
     }
 
-    // Remove disallowed tags (keep their children)
+    // 2. Remove disallowed tags (div, span, etc.) but keep their children
     if (!ALLOWED_TAGS.has(tag)) {
       const parent = el.parentNode;
-      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      while (el.firstChild) {
+        parent.insertBefore(el.firstChild, el);
+      }
       parent.removeChild(el);
+      // Re-scan because structure changed
+      elements = Array.from(container.querySelectorAll('*'));
       continue;
     }
 
+    // 3. For allowed tags, ensure correct classes and strip attributes
     applyClasses(el);
     stripAttributes(el, tag);
   }

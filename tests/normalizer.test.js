@@ -10,6 +10,18 @@ describe('normalizeHTML', () => {
     expect(result).toContain(`class="${CLASS_MAP.p}"`);
   });
 
+  it('flattens deeply nested spans and divs', () => {
+    const html = '<div><span><p>Text</p></span></div>';
+    const normalized = normalizeHTML(html);
+    expect(normalized).toBe(`<p class="${CLASS_MAP.p}">Text</p>`);
+  });
+
+  it('preserves strong/em while flattening parents', () => {
+    const html = '<div style="color:red"><span><strong>Bold</strong></span></div>';
+    const normalized = normalizeHTML(html);
+    expect(normalized).toBe(`<strong class="${CLASS_MAP.strong}">Bold</strong>`);
+  });
+
   it('replaces existing classes with correct Tailwind classes', () => {
     const input = '<p class="old-class">Text</p>';
     const result = normalizeHTML(input);

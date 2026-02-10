@@ -1,5 +1,5 @@
 import { CLASS_MAP, getClassFor } from './class-map.js';
-import { getClosestBlock, findParentTag } from './selection.js';
+import { getClosestBlock, findParentTag, saveSelection, restoreSelection, BLOCK_TAGS } from './selection.js';
 
 /**
  * Create a command registry bound to an editor root element.
@@ -113,8 +113,9 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const block = getClosestBlock(sel.getRangeAt(0).startContainer, root);
     if (!block) return;
 
-    // If already in a list of this type, unwrap
+    // If already in a list of this type, unwrap (ANALYSIS 3.2: fix cursor loss)
     if (block.tagName === 'LI' && block.parentElement.tagName === listTag.toUpperCase()) {
+      const saved = saveSelection(root);
       const list = block.parentElement;
       const items = Array.from(list.children);
 
@@ -127,6 +128,10 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
         fragment.appendChild(p);
       }
       list.parentNode.replaceChild(fragment, list);
+      
+      if (saved) {
+        restoreSelection(root, saved);
+      }
       return;
     }
 

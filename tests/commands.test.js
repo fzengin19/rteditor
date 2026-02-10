@@ -68,4 +68,32 @@ describe('command registry', () => {
       expect(root.querySelector('p')).toBeNull();
     });
   });
+
+  describe('block: unorderedList', () => {
+    it('wraps multiple selected paragraphs into a single list', () => {
+      root.innerHTML = `
+        <p class="${CLASS_MAP.p}">A</p>
+        <p class="${CLASS_MAP.p}">B</p>
+      `;
+      const p1 = root.querySelectorAll('p')[0];
+      const p2 = root.querySelectorAll('p')[1];
+      
+      const range = document.createRange();
+      range.setStart(p1.firstChild, 0);
+      range.setEnd(p2.firstChild, 1);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('unorderedList');
+
+      const ul = root.querySelector('ul');
+      expect(ul).not.toBeNull();
+      expect(ul.children.length).toBe(2);
+      expect(ul.children[0].tagName).toBe('LI');
+      expect(ul.children[1].tagName).toBe('LI');
+      expect(ul.children[0].textContent).toBe('A');
+      expect(ul.children[1].textContent).toBe('B');
+    });
+  });
 });

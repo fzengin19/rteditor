@@ -119,58 +119,75 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
 
-    const block = getClosestBlock(sel.getRangeAt(0).startContainer, root);
-    if (!block) return;
+    const range = sel.getRangeAt(0);
+    const saved = saveSelection(root);
 
-    // If already in a list of this type, unwrap (ANALYSIS 3.2: fix cursor loss)
-    if (block.tagName === 'LI' && block.parentElement.tagName === listTag.toUpperCase()) {
-      const saved = saveSelection(root);
-      const list = block.parentElement;
-      const items = Array.from(list.children);
+    // Identify all blocks in the editor
+    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+    
+    // Filter to those that intersect the selection
+    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
 
-      // Convert each LI to a P
-      const fragment = document.createDocumentFragment();
-      for (const li of items) {
+    if (selectedBlocks.length === 0) return;
+
+    // Filter to target only "leaf" blocks in the selection (innermost blocks)
+    const leafBlocks = selectedBlocks.filter(block => {
+      return !selectedBlocks.some(other => block !== other && block.contains(other));
+    });
+
+    if (leafBlocks.length === 0) return;
+
+    // Toggle logic: if the first leaf block matches the target list type, we unwrap ALL selected items
+    const firstBlock = leafBlocks[0];
+    const isInTargetList = firstBlock.tagName === 'LI' && firstBlock.parentElement?.tagName === listTag.toUpperCase();
+    const isInOtherList = firstBlock.tagName === 'LI' && firstBlock.parentElement?.tagName !== listTag.toUpperCase();
+
+    if (isInTargetList) {
+      // UNWRAP: Convert each selected LI to a P
+      // Note: We might be unwrapping part of a larger list.
+      leafBlocks.forEach(li => {
+        if (li.tagName !== 'LI') return;
         const p = document.createElement('p');
         p.className = getClassFor('p', classMap);
         while (li.firstChild) p.appendChild(li.firstChild);
-        fragment.appendChild(p);
-      }
-      list.parentNode.replaceChild(fragment, list);
-      
-      if (saved) {
-        restoreSelection(root, saved);
-      }
-      return;
+        
+        const list = li.parentElement;
+        if (list) {
+          list.parentNode.insertBefore(p, list.nextSibling); // Simplification: move after list
+          li.remove();
+          if (list.children.length === 0) list.remove();
+        }
+      });
+    } else if (isInOtherList) {
+      // SWITCH: Change parent list type for all selected items
+      const listsToSwitch = new Set(leafBlocks.map(li => li.parentElement).filter(el => el && el.tagName.match(/^(UL|OL)$/)));
+      listsToSwitch.forEach(oldList => {
+        const newList = document.createElement(listTag);
+        newList.className = getClassFor(listTag, classMap);
+        while (oldList.firstChild) newList.appendChild(oldList.firstChild);
+        oldList.parentNode.replaceChild(newList, oldList);
+      });
+    } else {
+      // WRAP: Group contiguous blocks into a single list
+      let currentList = null;
+      leafBlocks.forEach(block => {
+        // If the block's previous element sibling is not our current list, start a new one
+        if (!currentList || block.previousElementSibling !== currentList) {
+          currentList = document.createElement(listTag);
+          currentList.className = getClassFor(listTag, classMap);
+          block.parentNode.insertBefore(currentList, block);
+        }
+        const li = document.createElement('li');
+        li.className = getClassFor('li', classMap);
+        while (block.firstChild) li.appendChild(block.firstChild);
+        currentList.appendChild(li);
+        block.remove();
+      });
     }
 
-    // If in a different list type, switch
-    if (block.tagName === 'LI' && block.parentElement) {
-      const oldList = block.parentElement;
-      const newList = document.createElement(listTag);
-      newList.className = getClassFor(listTag, classMap);
-      while (oldList.firstChild) {
-        newList.appendChild(oldList.firstChild);
-      }
-      oldList.parentNode.replaceChild(newList, oldList);
-      return;
+    if (saved) {
+      restoreSelection(root, saved);
     }
-
-    // Wrap current block in a list
-    const list = document.createElement(listTag);
-    list.className = getClassFor(listTag, classMap);
-    const li = document.createElement('li');
-    li.className = getClassFor('li', classMap);
-    while (block.firstChild) li.appendChild(block.firstChild);
-    list.appendChild(li);
-    block.parentNode.replaceChild(list, block);
-
-    // Cursor into LI
-    const range = document.createRange();
-    range.selectNodeContents(li);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
   }
 
   commands.set('unorderedList', () => toggleList('ul'));

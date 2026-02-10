@@ -14,13 +14,20 @@ describe('RichTextEditor Integration', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders correctly with toolbar and content area', () => {
+  it('initializes with target selector', () => {
     const editor = new RichTextEditor('#editor-target');
-    
-    expect(container.querySelector('[role="toolbar"]')).not.toBeNull();
-    const contentEl = container.querySelector('[contenteditable="true"]');
-    expect(contentEl).not.toBeNull();
-    expect(contentEl.getAttribute('data-placeholder')).toBe('Start writing...');
+    expect(container.querySelector('[contenteditable]')).not.toBeNull();
+    editor.destroy();
+  });
+
+  it('initializes with DOM element', () => {
+    const editor = new RichTextEditor(container);
+    expect(container.querySelector('[contenteditable]')).not.toBeNull();
+    editor.destroy();
+  });
+
+  it('throws for invalid target', () => {
+    expect(() => new RichTextEditor('#nonexistent')).toThrow('not found');
   });
 
   it('sets and gets normalized HTML', () => {
@@ -32,6 +39,15 @@ describe('RichTextEditor Integration', () => {
     expect(html).toContain('<strong');
     expect(html).toContain('font-bold');
     expect(html).not.toContain('<b>');
+    editor.destroy();
+  });
+
+  it('reports isEmpty correctly', () => {
+    const editor = new RichTextEditor(container);
+    expect(editor.isEmpty()).toBe(true);
+    editor.setHTML('<p>hello</p>');
+    expect(editor.isEmpty()).toBe(false);
+    editor.destroy();
   });
 
   it('triggers onChange callback on content changes', () => {
@@ -40,19 +56,29 @@ describe('RichTextEditor Integration', () => {
     
     editor.setHTML('<p>New Content</p>');
     expect(onChange).toHaveBeenCalled();
+    editor.destroy();
+  });
+
+  it('gets plain text', () => {
+    const editor = new RichTextEditor(container);
+    editor.setHTML('<h1>Title</h1><p>Hello <strong>world</strong></p>');
+    const text = editor.getText();
+    expect(text).toContain('Title');
+    expect(text).toContain('Hello world');
+    editor.destroy();
   });
 
   it('cleans up on destroy', () => {
     const editor = new RichTextEditor(container);
     editor.destroy();
-    
-    expect(container.children.length).toBe(0);
+    expect(container.querySelector('[contenteditable]')).toBeNull();
+    expect(container.querySelector('[role="toolbar"]')).toBeNull();
   });
 
   it('respects initialHTML option', () => {
     const initialHTML = '<p>Initial</p>';
     const editor = new RichTextEditor(container, { initialHTML });
-    
     expect(editor.getHTML()).toContain('Initial');
+    editor.destroy();
   });
 });

@@ -207,7 +207,7 @@ export class EditorEngine {
     if (isListItem && block.textContent.trim() === '') {
       const list = block.parentElement;
       const p = document.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', this.#classMap);
       p.appendChild(document.createElement('br'));
 
       // If this is the only item, remove the whole list
@@ -273,13 +273,11 @@ export class EditorEngine {
 
     if (html) {
       // Use the normalizer to sanitize pasted HTML
-      // Import is static at top level or dynamic here as per plan
-      import('./normalizer.js').then(({ sanitizeHTML }) => {
-        const clean = sanitizeHTML(html, this.#classMap);
-        this.#insertHTML(clean);
-        this.#history.push();
-        this.#emitChange();
-      });
+      // We use the statically imported normalizeHTML (ANALYSIS 1.2)
+      const clean = normalizeHTML(html, this.#classMap);
+      this.#insertHTML(clean);
+      this.#history.push();
+      this.#emitChange();
     } else if (text) {
       // Insert plain text as paragraphs
       const paragraphs = text.split(/\n\n+/);

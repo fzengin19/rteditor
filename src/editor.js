@@ -213,7 +213,7 @@ export class RichTextEditor {
 
   /** Focus the editor. */
   focus() {
-    this.#engine.contentEl.focus();
+    this.#engine.focus();
   }
 
   /** Check if editor is empty. */
@@ -221,10 +221,6 @@ export class RichTextEditor {
     return !this.#engine.getText().trim();
   }
 
-  /** Focus the editor. */
-  focus() {
-    this.#engine.focus();
-  }
 
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {

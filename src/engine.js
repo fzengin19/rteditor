@@ -9,6 +9,7 @@ export class EditorEngine {
   #history;
   #onChange;
   #debounceTimer = null;
+  #listeners = {};
 
   constructor(contentEl, { onChange = () => {} } = {}) {
     this.#root = contentEl;
@@ -29,6 +30,18 @@ export class EditorEngine {
 
   get history() {
     return this.#history;
+  }
+
+  /** Register an event listener. */
+  on(event, callback) {
+    if (!this.#listeners[event]) this.#listeners[event] = [];
+    this.#listeners[event].push(callback);
+  }
+
+  #emit(event, ...args) {
+    if (this.#listeners[event]) {
+      this.#listeners[event].forEach(cb => cb(...args));
+    }
   }
 
   /** Execute a formatting command by name. */
@@ -320,7 +333,9 @@ export class EditorEngine {
   }
 
   #emitChange() {
-    this.#onChange(this.getHTML());
+    const html = this.getHTML();
+    this.#onChange(html);
+    this.#emit('change', html);
   }
 
   destroy() {

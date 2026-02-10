@@ -2,6 +2,7 @@ import { EditorEngine } from './engine.js';
 import { Toolbar, DEFAULT_TOOLBAR } from './toolbar.js';
 import { CLASS_MAP } from './class-map.js';
 import { normalizeHTML } from './normalizer.js';
+import { ImageResizer } from './resizer.js';
 
 /**
  * RTEditor: A rich text editor that outputs Tailwind CSS v4 classes.
@@ -93,6 +94,40 @@ export class RichTextEditor {
       this.#toolbar.updateState(this.#engine.contentEl);
     };
     document.addEventListener('selectionchange', this._selectionHandler);
+
+    this.#setupResizer();
+  }
+
+  #setupResizer() {
+    let currentResizer = null;
+
+    this.#engine.contentEl.addEventListener('click', (e) => {
+      if (currentResizer) {
+        currentResizer.destroy();
+        currentResizer = null;
+      }
+
+      if (e.target.tagName === 'IMG') {
+        currentResizer = new ImageResizer(e.target);
+      }
+    });
+
+    // Cleanup resizer when user clicks outside
+    this._resizerCleanup = (e) => {
+      if (currentResizer && !this.#engine.contentEl.contains(e.target)) {
+        currentResizer.destroy();
+        currentResizer = null;
+      }
+    };
+    document.addEventListener('mousedown', this._resizerCleanup);
+
+    // Handle commands that might replace content or state restores
+    this.#engine.on('change', () => {
+      if (currentResizer) {
+        currentResizer.destroy();
+        currentResizer = null;
+      }
+    });
   }
 
   #setupPlaceholder() {
@@ -168,6 +203,7 @@ export class RichTextEditor {
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {
     document.removeEventListener('selectionchange', this._selectionHandler);
+    document.removeEventListener('mousedown', this._resizerCleanup);
     this.#engine.destroy();
     if (this.#toolbar.destroy) this.#toolbar.destroy();
     this.#wrapper.remove();

@@ -51,10 +51,10 @@ export const DEFAULT_TOOLBAR: string[];
 export const CLASS_MAP: Record<string, string>;
 
 /** Get the Tailwind classes for a specific tag. */
-export function getClassFor(tag: string): string;
+export function getClassFor(tag: string, classMap?: Record<string, string>): string;
 
 /** Normalize an HTML string by applying Tailwind classes and fixing tags. */
-export function normalizeHTML(html: string): string;
+export function normalizeHTML(html: string, classMap?: Record<string, string>): string;
 
 /** Sanitize and normalize HTML content (e.g. from paste). */
-export function sanitizeHTML(html: string): string;
+export function sanitizeHTML(html: string, classMap?: Record<string, string>): string;

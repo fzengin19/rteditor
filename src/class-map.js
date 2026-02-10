@@ -17,6 +17,8 @@ export const CLASS_MAP = {
   li:         'text-base leading-7',
 
   blockquote: 'border-l-4 border-gray-300 pl-4 py-1 my-4 italic text-gray-600',
+  pre:        'bg-gray-100 p-4 rounded-lg my-4 overflow-x-auto font-mono text-sm text-gray-800',
+  code:       'bg-gray-100 px-1.5 py-0.5 rounded font-mono text-sm text-pink-600',
 
   // Inline formatting
   strong:     'font-bold',

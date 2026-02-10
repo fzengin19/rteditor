@@ -11,8 +11,8 @@ const BLOCKED_TAGS = new Set([
 const ALLOWED_TAGS = new Set([
   'p', 'h1', 'h2', 'h3', 'h4',
   'ul', 'ol', 'li',
-  'blockquote',
-  'strong', 'em', 'u', 's',
+  'blockquote', 'pre',
+  'strong', 'em', 'u', 's', 'code',
   'a', 'img', 'br',
 ]);
 

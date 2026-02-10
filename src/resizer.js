@@ -40,7 +40,11 @@ export class ImageResizer {
       else handle.className += ' cursor-nesw-resize';
       
       handle.setAttribute('data-rt-resizer-handle', 'true');
-      handle.addEventListener('mousedown', (e) => this.#onMouseDown(e));
+      
+      // Support both mouse and touch
+      handle.addEventListener('mousedown', (e) => this.#onStart(e));
+      handle.addEventListener('touchstart', (e) => this.#onStart(e), { passive: false });
+      
       this.#overlay.appendChild(handle);
       this.#handles.push(handle);
     }
@@ -58,7 +62,6 @@ export class ImageResizer {
     if (!root) return;
 
     // Use offset-based positioning relative to the [relative] editor root
-    // We calculate the total offset if the image is nested
     let top = 0;
     let left = 0;
     let current = this.#img;
@@ -75,33 +78,50 @@ export class ImageResizer {
     this.#overlay.style.height = `${this.#img.offsetHeight}px`;
   }
 
-  #onMouseDown(e) {
-    e.preventDefault();
+  #getClientX(e) {
+    if (e.touches && e.touches.length > 0) {
+      return e.touches[0].clientX;
+    }
+    return e.clientX;
+  }
+
+  #onStart(e) {
+    // Only prevent default for touch to avoid scrolling, 
+    // for mouse it might interfere with focus if not careful but generally okay here
+    if (e.type === 'touchstart') e.preventDefault();
     e.stopPropagation();
+
     this.#isResizing = true;
-    this.#startX = e.clientX;
+    this.#startX = this.#getClientX(e);
     this.#startWidth = this.#img.clientWidth;
 
-    const onMouseMove = (moveEvent) => this.#onMouseMove(moveEvent);
-    const onMouseUp = (upEvent) => {
+    const onMove = (moveEvent) => this.#onMove(moveEvent);
+    const onEnd = () => {
       this.#isResizing = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
       
-      // Dispatch input to trigger changes (this will destroy THIS resizer via EditorEngine -> change event)
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      
+      // Dispatch input to trigger changes
       const root = this.#img.closest('[contenteditable]');
       if (root) {
         root.dispatchEvent(new Event('input', { bubbles: true }));
       }
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
   }
 
-  #onMouseMove(e) {
+  #onMove(e) {
     if (!this.#isResizing) return;
-    const delta = e.clientX - this.#startX;
+    if (e.type === 'touchmove') e.preventDefault(); // Prevent scroll while resizing
+
+    const delta = this.#getClientX(e) - this.#startX;
     const newWidth = Math.max(50, this.#startWidth + delta);
     
     this.#img.style.width = `${newWidth}px`;

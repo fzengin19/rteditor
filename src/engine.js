@@ -25,7 +25,9 @@ export class EditorEngine {
     try {
       document.execCommand('enableObjectResizing', false, 'false');
       document.execCommand('enableInlineTableEditing', false, 'false');
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.debug('RTEditor: Native command failed', e);
+    }
     
     // Add global CSS to root to hide handles in WebKit/Blink
     this.#root.style.outline = 'none';

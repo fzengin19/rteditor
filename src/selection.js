@@ -103,8 +103,9 @@ export function restoreSelection(root, saved) {
     range.setEnd(endNode, Math.min(saved.endOffset, endNode.length || endNode.childNodes.length));
     sel.removeAllRanges();
     sel.addRange(range);
-  } catch {
+  } catch (e) {
     // Selection restoration can fail if DOM structure changed significantly
+    console.debug('RTEditor: Selection restoration failed', e);
   }
 }
 

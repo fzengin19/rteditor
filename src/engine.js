@@ -49,6 +49,16 @@ export class EditorEngine {
 
   /** Execute a formatting command by name. */
   exec(command, ...args) {
+    // 1. Ensure focus
+    this.focus();
+
+    // 2. Save selection manually because some UI interactions can kill it
+    const sel = window.getSelection();
+    let savedRange = null;
+    if (sel.rangeCount > 0) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+
     if (command === 'undo') {
       this.#history.undo();
       this.#emitChange();
@@ -60,9 +70,19 @@ export class EditorEngine {
       return;
     }
 
-    this.#commands.exec(command, ...args);
-    this.#history.push();
-    this.#emitChange();
+    try {
+      // 4. Restore selection before command if we have a saved one
+      if (savedRange) {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      }
+
+      this.#commands.exec(command, ...args);
+      this.#history.push();
+      this.#emitChange();
+    } catch (e) {
+      console.error(`EditorEngine: Command "${command}" failed`, e);
+    }
   }
 
   /** Get normalized HTML content. */

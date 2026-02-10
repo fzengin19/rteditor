@@ -39,6 +39,24 @@ describe('Toolbar', () => {
     expect(editor.exec).toHaveBeenCalledWith('bold');
   });
 
+  it('shows a custom prompt for link/image buttons', () => {
+    const linkBtn = toolbar.element.querySelector('button[data-command="link"]');
+    linkBtn.click();
+    
+    // Check if prompt overlay exists
+    const overlay = toolbar.element.querySelector('input').parentElement;
+    expect(overlay).not.toBeNull();
+    
+    // Enter URL and click apply
+    const input = overlay.querySelector('input');
+    input.value = 'https://vitest.dev';
+    const applyBtn = Array.from(overlay.querySelectorAll('button')).find(b => b.textContent === 'Apply');
+    applyBtn.click();
+    
+    expect(editor.exec).toHaveBeenCalledWith('link', 'https://vitest.dev');
+    expect(toolbar.element.querySelector('input')).toBeNull(); // Overlay removed
+  });
+
   it('highlights buttons based on selection state', () => {
     const el = toolbar.element;
     const boldBtn = el.querySelector('button[data-command="bold"]');

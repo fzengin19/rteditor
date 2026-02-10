@@ -52,6 +52,7 @@ export class Toolbar {
   #editor;          // editor instance (has exec, contentEl)
   #buttons = {};    // name → { el, def }
   #dropdown = null; // heading dropdown element
+  #promptOverlay = null;
 
   constructor(editor, toolbarItems = DEFAULT_TOOLBAR) {
     this.#editor = editor;
@@ -108,12 +109,10 @@ export class Toolbar {
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      if (def.type === 'prompt' && def.command === 'link') {
-        const url = prompt('Enter URL:');
-        if (url) this.#editor.exec('link', url);
-      } else if (def.type === 'prompt' && def.command === 'image') {
-        const src = prompt('Enter image URL:');
-        if (src) this.#editor.exec('image', src);
+      if (def.type === 'prompt') {
+        this.#showPrompt(def.label, (val) => {
+          if (val) this.#editor.exec(def.command, val);
+        });
       } else {
         this.#editor.exec(def.command);
       }
@@ -127,6 +126,57 @@ export class Toolbar {
     }
 
     this.#container.appendChild(btn);
+  }
+
+  #showPrompt(label, callback) {
+    if (this.#promptOverlay) this.#promptOverlay.remove();
+
+    this.#promptOverlay = document.createElement('div');
+    this.#promptOverlay.className = 'absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-lg p-2 flex gap-2 z-[200] items-center rounded-lg animate-in fade-in slide-in-from-top-1 duration-200';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = `Enter ${label.toLowerCase()} URL...`;
+    input.className = 'flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none';
+    
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors';
+    applyBtn.textContent = 'Apply';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-medium rounded hover:bg-gray-200 transition-colors';
+    cancelBtn.textContent = 'Cancel';
+
+    const close = () => {
+      this.#promptOverlay.remove();
+      this.#promptOverlay = null;
+    };
+
+    applyBtn.onclick = () => {
+      callback(input.value.trim());
+      close();
+    };
+
+    cancelBtn.onclick = close;
+    
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') applyBtn.click();
+      if (e.key === 'Escape') close();
+    };
+
+    this.#promptOverlay.appendChild(input);
+    this.#promptOverlay.appendChild(applyBtn);
+    this.#promptOverlay.appendChild(cancelBtn);
+    
+    // We need a relative parent to position the overlay
+    if (this.#container.style.position !== 'relative') {
+      this.#container.style.position = 'relative';
+    }
+    this.#container.appendChild(this.#promptOverlay);
+    
+    setTimeout(() => input.focus(), 10);
   }
 
   #createDropdown(name, def) {

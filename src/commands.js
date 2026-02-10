@@ -218,11 +218,33 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     a.rel = 'noopener noreferrer';
 
     if (range.collapsed) {
-      a.textContent = text || url;
+      // For collapsed selections, if text is provided use it, otherwise use URL
+      const linkText = text || url;
+      const textNode = document.createTextNode(linkText);
+      a.appendChild(textNode);
       range.insertNode(a);
+      
+      // Move cursor after the inserted link
+      const newRange = document.createRange();
+      newRange.setStartAfter(a);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
     } else {
-      a.appendChild(range.extractContents());
-      range.insertNode(a);
+      // Wrap existing content
+      try {
+        const fragment = range.extractContents();
+        a.appendChild(fragment);
+        range.insertNode(a);
+        
+        // Select the new link
+        const newRange = document.createRange();
+        newRange.selectNodeContents(a);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } catch (e) {
+        console.error('RTEditor: link wrap failed', e);
+      }
     }
   });
 

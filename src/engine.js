@@ -1,7 +1,7 @@
 import { CLASS_MAP, getClassFor } from './class-map.js';
 import { createCommandRegistry } from './commands.js';
 import { History } from './history.js';
-import { getClosestBlock } from './selection.js';
+import { getClosestBlock, findParentTag, saveSelection, restoreSelection } from './selection.js';
 import { normalizeHTML } from './normalizer.js';
 
 export class EditorEngine {
@@ -68,12 +68,8 @@ export class EditorEngine {
     // 1. Ensure focus
     this.focus();
 
-    // 2. Save selection manually because some UI interactions can kill it
-    const sel = window.getSelection();
-    let savedRange = null;
-    if (sel.rangeCount > 0) {
-      savedRange = sel.getRangeAt(0).cloneRange();
-    }
+    // 2. Save selection manually as a serializable path
+    const savedSelection = saveSelection(this.#root);
 
     if (command === 'undo') {
       this.#history.undo();
@@ -87,10 +83,9 @@ export class EditorEngine {
     }
 
     try {
-      // 4. Restore selection before command if we have a saved one
-      if (savedRange) {
-        sel.removeAllRanges();
-        sel.addRange(savedRange);
+      // 4. Restore selection before command
+      if (savedSelection) {
+        restoreSelection(this.#root, savedSelection);
       }
 
       this.#commands.exec(command, ...args);

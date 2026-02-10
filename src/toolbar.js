@@ -1,5 +1,5 @@
 import { ICONS } from './icons.js';
-import { getClosestBlock, findParentTag } from './selection.js';
+import { getClosestBlock, findParentTag, saveSelection, restoreSelection } from './selection.js';
 
 /**
  * Default toolbar button configuration.
@@ -109,8 +109,13 @@ export class Toolbar {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       if (def.type === 'prompt') {
+        const currentSel = saveSelection(this.#editor.contentEl);
         this.#showPrompt(def.label, (val) => {
-          if (val) this.#editor.exec(def.command, val);
+          if (val) {
+            // Re-apply captured selection if it was lost
+            if (currentSel) restoreSelection(this.#editor.contentEl, currentSel);
+            this.#editor.exec(def.command, val);
+          }
         });
       } else {
         this.#editor.exec(def.command);

@@ -203,65 +203,17 @@ export class EditorEngine {
       return;
     }
 
+    // Dispatch to specialized handlers
     const isListItem = block.tagName === 'LI';
+    const bq = findParentTag(block, 'blockquote', this.#root);
 
-    // Empty list item: remove from list, create paragraph
-    if (isListItem && block.textContent.trim() === '') {
-      const list = block.parentElement;
-      const p = document.createElement('p');
-      p.className = getClassFor('p', this.#classMap);
-      p.appendChild(document.createElement('br'));
-
-      // If this is the only item, remove the whole list
-      if (list.children.length === 1) {
-        list.parentNode.replaceChild(p, list);
-      } else {
-        block.remove();
-        list.parentNode.insertBefore(p, list.nextSibling);
-      }
-      this.#setCursorToStart(p);
-      this.#history.push();
-      this.#emitChange();
-      return;
-    }
-
-    // Split block at cursor
-    const afterRange = document.createRange();
-    afterRange.setStart(range.endContainer, range.endOffset);
-    afterRange.setEndAfter(block.lastChild || block);
-    const afterContent = afterRange.extractContents();
-
-    // Determine new block type
-    let newTag, newClass;
     if (isListItem) {
-      newTag = 'li';
-      newClass = getClassFor('li', this.#classMap);
+      this.#handleListEnter(block, range);
+    } else if (bq) {
+      this.#handleBlockquoteEnter(bq, range);
     } else {
-      newTag = 'p';
-      newClass = getClassFor('p', this.#classMap);
+      this.#handleDefaultEnter(block, range);
     }
-
-    const newBlock = document.createElement(newTag);
-    newBlock.className = newClass;
-
-    if (!afterContent.textContent.trim() && afterContent.childNodes.length === 0) {
-      newBlock.appendChild(document.createElement('br'));
-    } else {
-      newBlock.appendChild(afterContent);
-    }
-
-    // Handle empty original block
-    if (!block.textContent.trim() && !block.querySelector('br, img')) {
-      block.innerHTML = '';
-      block.appendChild(document.createElement('br'));
-    }
-
-    // Insert new block
-    block.parentNode.insertBefore(newBlock, block.nextSibling);
-
-    this.#setCursorToStart(newBlock);
-    this.#history.push();
-    this.#emitChange();
   }
 
   #handlePaste(e) {
@@ -374,6 +326,139 @@ export class EditorEngine {
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
+  }
+
+  /**
+   * Specific logic for Enter in a list item. 
+   * Handles both splitting and "double enter to breakout".
+   */
+  #handleListEnter(li, range) {
+    const list = li.parentElement;
+    
+    if (this.#isEmpty(li)) {
+      // BREAK OUT of list
+      const p = document.createElement('p');
+      p.className = getClassFor('p', this.#classMap);
+      p.appendChild(document.createElement('br'));
+
+      if (list.children.length === 1) {
+        list.parentNode.replaceChild(p, list);
+      } else {
+        li.remove();
+        list.parentNode.insertBefore(p, list.nextSibling);
+      }
+      this.#setCursorToStart(p);
+    } else {
+      // Normal list item split
+      this.#splitBlock(li, range, 'li');
+    }
+    
+    this.#history.push();
+    this.#emitChange();
+  }
+
+  /**
+   * Standard Enter logic for paragraphs, headings, etc.
+   */
+  #handleDefaultEnter(block, range) {
+    const isHeading = block.tagName.startsWith('H');
+    // If we're at the end of a heading, we want to create a P.
+    // If we're splitting a heading, we might want to keep the heading tag?
+    // Standard behavior: 
+    // - Enter at end of Heading -> New Paragraph
+    // - Enter in middle of Heading -> Split into two of same type OR split into Heading + P?
+    // Let's stick to: split into same type, unless it's a heading and we're at the end.
+    
+    let nextTag = block.tagName.toLowerCase();
+    
+    // Check if cursor is at the very end
+    const afterRange = document.createRange();
+    afterRange.setStart(range.endContainer, range.endOffset);
+    afterRange.setEndAfter(block.lastChild || block);
+    
+    if (isHeading && afterRange.toString().trim() === '' && !afterRange.cloneContents().querySelector('img')) {
+      nextTag = 'p';
+    }
+
+    this.#splitBlock(block, range, nextTag);
+    this.#history.push();
+    this.#emitChange();
+  }
+
+  /**
+   * Specific logic for Enter in a blockquote.
+   * Handles splitting or breaking out.
+   */
+  #handleBlockquoteEnter(bq, range) {
+    if (this.#isEmpty(bq)) {
+      // BREAK OUT of blockquote
+      const p = document.createElement('p');
+      p.className = getClassFor('p', this.#classMap);
+      p.appendChild(document.createElement('br'));
+      bq.parentNode.insertBefore(p, bq.nextSibling);
+      
+      // If the blockquote had other content, we just leave the empty P after it.
+      // If it was empty, we keep it empty or remove it?
+      // Usually, if you hit enter in an empty blockquote, it becomes a P.
+      if (bq.textContent.trim() === '' && !bq.querySelector('img')) {
+        bq.remove();
+      }
+      
+      this.#setCursorToStart(p);
+    } else {
+      // Split blockquote
+      this.#splitBlock(bq, range, 'blockquote');
+    }
+    
+    this.#history.push();
+    this.#emitChange();
+  }
+
+  /**
+   * Core logic to split a block at a range and create a new block of the specified type.
+   */
+  #splitBlock(block, range, tag = 'p') {
+    const afterRange = document.createRange();
+    afterRange.setStart(range.endContainer, range.endOffset);
+    afterRange.setEndAfter(block.lastChild || block);
+    const afterContent = afterRange.extractContents();
+
+    const newBlock = document.createElement(tag);
+    newBlock.className = getClassFor(tag, this.#classMap);
+
+    newBlock.appendChild(afterContent);
+
+    // Ensure new block has content or a BR
+    if (this.#isEmpty(newBlock)) {
+      newBlock.innerHTML = '';
+      newBlock.appendChild(document.createElement('br'));
+    }
+
+    // Handle empty original block
+    if (this.#isEmpty(block)) {
+      block.innerHTML = '';
+      block.appendChild(document.createElement('br'));
+    }
+
+    block.parentNode.insertBefore(newBlock, block.nextSibling);
+    this.#setCursorToStart(newBlock);
+  }
+
+  /**
+   * Check if a block is effectively empty (accounting for ZWS, br, img).
+   */
+  #isEmpty(node) {
+    if (!node) return true;
+    
+    // If it has images, it's NOT empty
+    if (node.querySelector('img')) return false;
+    
+    // Technical check: strip ZWS (\u200B) and check trim
+    const text = node.textContent.replace(/\u200B/g, '').trim();
+    if (text !== '') return false;
+
+    // If it only has BR or is truly empty, it's empty
+    return true;
   }
 
   #emitChange() {

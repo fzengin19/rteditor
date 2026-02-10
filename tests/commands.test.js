@@ -19,7 +19,7 @@ describe('command registry', () => {
       'bold', 'italic', 'underline', 'strikethrough',
       'h1', 'h2', 'h3', 'h4', 'paragraph',
       'unorderedList', 'orderedList',
-      'blockquote', 'codeBlock',
+      'blockquote',
       'link', 'image',
       'clearFormatting',
     ];

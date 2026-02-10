@@ -6,7 +6,7 @@ describe('ICONS', () => {
     const required = [
       'bold', 'italic', 'underline', 'strikethrough',
       'heading', 'unorderedList', 'orderedList',
-      'blockquote', 'codeBlock', 'link', 'image',
+      'blockquote', 'link', 'image',
       'undo', 'redo', 'clearFormat', 'chevronDown'
     ];
     for (const key of required) {

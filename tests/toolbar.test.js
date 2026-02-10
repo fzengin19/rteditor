@@ -90,4 +90,16 @@ describe('Toolbar', () => {
     toggleBtn.click();
     expect(menu.classList.contains('hidden')).toBe(true);
   });
+
+  it('sets correct ARIA roles for heading dropdown items', () => {
+    const dropdownWrapper = toolbar.element.querySelector('.relative');
+    const menu = dropdownWrapper.querySelector('[role="listbox"]');
+    const options = menu.querySelectorAll('[role="option"]');
+
+    expect(menu).not.toBeNull();
+    expect(options.length).toBeGreaterThan(0);
+    
+    // Check initial aria-selected
+    expect(options[0].getAttribute('aria-selected')).toBe('false');
+  });
 });

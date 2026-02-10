@@ -203,6 +203,7 @@ export class Toolbar {
 
     const dropdown = document.createElement('div');
     dropdown.className = 'absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] z-[100] hidden';
+    dropdown.setAttribute('role', 'listbox');
 
     const headingButtons = [];
     for (const opt of HEADING_OPTIONS) {
@@ -210,6 +211,8 @@ export class Toolbar {
       item.type = 'button';
       item.className = 'w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors flex items-center whitespace-nowrap';
       item.textContent = opt.label;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', 'false');
       item.setAttribute('data-command', opt.command);
       item.setAttribute('data-tag', opt.tag);
 
@@ -271,6 +274,7 @@ export class Toolbar {
         const isActive = !!findParentTag(node, def.tag, editorRoot);
         el.classList.toggle('bg-gray-200', isActive);
         el.classList.toggle('text-blue-600', isActive);
+        el.setAttribute('aria-pressed', isActive.toString());
       }
 
       if (def.type === 'block') {
@@ -282,6 +286,7 @@ export class Toolbar {
         }
         el.classList.toggle('bg-gray-200', isActive);
         el.classList.toggle('text-blue-600', isActive);
+        el.setAttribute('aria-pressed', isActive.toString());
       }
 
       // Handle dropdown item highlighting
@@ -290,7 +295,7 @@ export class Toolbar {
           const isActive = blockTag === item.tag;
           item.el.classList.toggle('bg-gray-100', isActive);
           item.el.classList.toggle('text-blue-600', isActive);
-          item.el.setAttribute('aria-current', isActive ? 'true' : 'false');
+          item.el.setAttribute('aria-selected', isActive.toString());
         }
       }
       

@@ -198,30 +198,71 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
   commands.set('blockquote', () => {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
-    const block = getClosestBlock(sel.getRangeAt(0).startContainer, root);
-    if (!block) return;
 
-    if (block.tagName === 'BLOCKQUOTE') {
-      // Unwrap: convert to paragraph
-      const p = document.createElement('p');
-      p.className = getClassFor('p', classMap);
-      while (block.firstChild) p.appendChild(block.firstChild);
-      block.parentNode.replaceChild(p, block);
-    } else {
-      const bq = document.createElement('blockquote');
-      bq.className = getClassFor('blockquote', classMap);
+    const range = sel.getRangeAt(0);
+    const saved = saveSelection(root);
 
-      // If block is a P, replace it. Otherwise wrap contents.
-      if (block.tagName === 'P') {
-        while (block.firstChild) bq.appendChild(block.firstChild);
-        block.parentNode.replaceChild(bq, block);
-      } else {
+    // Identify all blocks in the editor
+    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+    
+    // Filter to those that intersect the selection
+    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
+
+    if (selectedBlocks.length === 0) return;
+
+    // Filter to target only "leaf" blocks in the selection (innermost blocks)
+    const leafBlocks = selectedBlocks.filter(block => {
+      return !selectedBlocks.some(other => block !== other && block.contains(other));
+    });
+
+    if (leafBlocks.length === 0) return;
+
+    // Toggle logic: if the first leaf block matches the target list type, we unwrap ALL selected items
+    const firstBlock = leafBlocks[0];
+    const isInBlockquote = findParentTag(firstBlock, 'blockquote', root);
+
+    if (isInBlockquote) {
+      // UNWRAP: Convert each selected block inside a blockquote back to P
+      leafBlocks.forEach(block => {
+        const bq = findParentTag(block, 'blockquote', root);
+        if (!bq) return;
+
+        // Convert block to P if it's not already
         const p = document.createElement('p');
         p.className = getClassFor('p', classMap);
         while (block.firstChild) p.appendChild(block.firstChild);
-        bq.appendChild(p);
-        block.parentNode.replaceChild(bq, block);
-      }
+        
+        bq.parentNode.insertBefore(p, bq.nextSibling);
+        block.remove();
+        if (bq.children.length === 0) bq.remove();
+      });
+    } else {
+      // WRAP: Move all selected blocks into a single blockquote
+      const bq = document.createElement('blockquote');
+      bq.className = getClassFor('blockquote', classMap);
+      
+      // Use the first block's parent as the insertion point
+      const firstParent = leafBlocks[0].parentNode;
+      const firstSibling = leafBlocks[0];
+      firstParent.insertBefore(bq, firstSibling);
+
+      leafBlocks.forEach(block => {
+        // If it's a P, we can just move it in. 
+        // If it's something else, we might want to wrap its contents in a P inside the BQ.
+        if (block.tagName === 'P') {
+          bq.appendChild(block);
+        } else {
+          const p = document.createElement('p');
+          p.className = getClassFor('p', classMap);
+          while (block.firstChild) p.appendChild(block.firstChild);
+          bq.appendChild(p);
+          block.remove();
+        }
+      });
+    }
+
+    if (saved) {
+      restoreSelection(root, saved);
     }
   });
 

@@ -96,4 +96,32 @@ describe('command registry', () => {
       expect(ul.children[1].textContent).toBe('B');
     });
   });
+
+  describe('block: blockquote', () => {
+    it('wraps multiple selected paragraphs into a single blockquote', () => {
+      root.innerHTML = `
+        <p class="${CLASS_MAP.p}">A</p>
+        <p class="${CLASS_MAP.p}">B</p>
+      `;
+      const p1 = root.querySelectorAll('p')[0];
+      const p2 = root.querySelectorAll('p')[1];
+      
+      const range = document.createRange();
+      range.setStart(p1.firstChild, 0);
+      range.setEnd(p2.firstChild, 1);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('blockquote');
+
+      const bq = root.querySelector('blockquote');
+      expect(bq).not.toBeNull();
+      expect(bq.children.length).toBe(2);
+      expect(bq.children[0].tagName).toBe('P');
+      expect(bq.children[1].tagName).toBe('P');
+      expect(bq.children[0].textContent).toBe('A');
+      expect(bq.children[1].textContent).toBe('B');
+    });
+  });
 });

@@ -29,6 +29,14 @@ export class History {
     this.#stack = this.#stack.slice(0, this.#index + 1);
 
     const html = this.#root.innerHTML;
+    
+    // ANALYSIS 3.4: Skip if content is identical to last snapshot
+    if (this.#stack.length > 0 && this.#index >= 0) {
+      const lastEntry = this.#stack[this.#index];
+      const lastHTML = lastEntry.fullHTML || this.#reconstructHTML(this.#index);
+      if (lastHTML === html) return;
+    }
+
     const selection = saveSelection(this.#root);
     
     let entry;

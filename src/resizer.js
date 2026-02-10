@@ -9,7 +9,6 @@ export class ImageResizer {
   #isResizing = false;
   #startWidth = 0;
   #startX = 0;
-  #startX = 0;
 
   constructor(img) {
     this.#img = img;

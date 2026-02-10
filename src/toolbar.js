@@ -242,23 +242,36 @@ export class Toolbar {
     }
   }
 
+  #onKeydown = (e) => {
+    const items = Array.from(this.#container.querySelectorAll('button:not([data-tag])'));
+    const index = items.indexOf(document.activeElement);
+    if (index === -1) return;
+
+    let nextIndex;
+    if (e.key === 'ArrowRight') nextIndex = (index + 1) % items.length;
+    else if (e.key === 'ArrowLeft') nextIndex = (index - 1 + items.length) % items.length;
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = items.length - 1;
+    else return;
+
+    e.preventDefault();
+    items[index].tabIndex = -1;
+    items[nextIndex].tabIndex = 0;
+    items[nextIndex].focus();
+  };
+
   #setupKeyboardNav() {
-    this.#container.addEventListener('keydown', (e) => {
-      const items = Array.from(this.#container.querySelectorAll('button:not([data-tag])'));
-      const index = items.indexOf(document.activeElement);
-      if (index === -1) return;
+    this.#container.addEventListener('keydown', this.#onKeydown);
+  }
 
-      let nextIndex;
-      if (e.key === 'ArrowRight') nextIndex = (index + 1) % items.length;
-      else if (e.key === 'ArrowLeft') nextIndex = (index - 1 + items.length) % items.length;
-      else if (e.key === 'Home') nextIndex = 0;
-      else if (e.key === 'End') nextIndex = items.length - 1;
-      else return;
-
-      e.preventDefault();
-      items[index].tabIndex = -1;
-      items[nextIndex].tabIndex = 0;
-      items[nextIndex].focus();
-    });
+  destroy() {
+    this.#container.removeEventListener('keydown', this.#onKeydown);
+    if (this.#container.parentNode) {
+      this.#container.parentNode.removeChild(this.#container);
+    }
+    this.#buttons = {};
+    if (this.#dropdown && this.#dropdown.parentNode) {
+       this.#dropdown.parentNode.removeChild(this.#dropdown);
+    }
   }
 }

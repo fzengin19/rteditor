@@ -1,7 +1,8 @@
-import { getClassFor } from './class-map.js';
+import { CLASS_MAP, getClassFor } from './class-map.js';
 import { createCommandRegistry } from './commands.js';
 import { History } from './history.js';
 import { getClosestBlock } from './selection.js';
+import { normalizeHTML } from './normalizer.js';
 
 export class EditorEngine {
   #root;
@@ -101,18 +102,23 @@ export class EditorEngine {
   }
 
   #bindEvents() {
-    // Handle Enter key: create proper block elements
-    this.#root.addEventListener('keydown', (e) => this.#handleKeydown(e));
-
-    // Handle paste: sanitize
-    this.#root.addEventListener('paste', (e) => this.#handlePaste(e));
-
-    // Track input for history and change events
-    this.#root.addEventListener('input', () => this.#handleInput());
-
-    // Normalize bare text/divs after mutations
-    this.#root.addEventListener('input', () => this.#normalizeContent());
+    this.#root.addEventListener('keydown', this.#onKeydown);
+    this.#root.addEventListener('paste', this.#onPaste);
+    this.#root.addEventListener('input', this.#onInput);
   }
+
+  #onKeydown = (e) => {
+    this.#handleKeydown(e);
+  };
+
+  #onPaste = (e) => {
+    this.#handlePaste(e);
+  };
+
+  #onInput = () => {
+    this.#handleInput();
+    this.#normalizeContent();
+  };
 
   #handleKeydown(e) {
     // Keyboard shortcuts
@@ -342,8 +348,15 @@ export class EditorEngine {
 
   destroy() {
     clearTimeout(this.#debounceTimer);
+    
+    // Remove individual event listeners
+    this.#root.removeEventListener('keydown', this.#onKeydown);
+    this.#root.removeEventListener('paste', this.#onPaste);
+    this.#root.removeEventListener('input', this.#onInput);
+
     this.#root.removeAttribute('contenteditable');
     this.#root.removeAttribute('role');
     this.#root.removeAttribute('aria-multiline');
+    this.#listeners = {}; // Clear internal emitter listeners
   }
 }

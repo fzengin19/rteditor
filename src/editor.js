@@ -13,6 +13,7 @@ export class RichTextEditor {
   #toolbar;
   #options;
   #classMap;
+  #currentResizer = null;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -102,36 +103,38 @@ export class RichTextEditor {
   }
 
   #setupResizer() {
-    let currentResizer = null;
+    this.#currentResizer = null;
 
-    this.#engine.contentEl.addEventListener('click', (e) => {
-      if (currentResizer) {
-        currentResizer.destroy();
-        currentResizer = null;
-      }
-
-      if (e.target.tagName === 'IMG') {
-        currentResizer = new ImageResizer(e.target);
-      }
-    });
+    this.#engine.contentEl.addEventListener('click', this.#onClick);
 
     // Cleanup resizer when user clicks outside
     this._resizerCleanup = (e) => {
-      if (currentResizer && !this.#engine.contentEl.contains(e.target)) {
-        currentResizer.destroy();
-        currentResizer = null;
+      if (this.#currentResizer && !this.#engine.contentEl.contains(e.target)) {
+        this.#currentResizer.destroy();
+        this.#currentResizer = null;
       }
     };
     document.addEventListener('mousedown', this._resizerCleanup);
 
     // Handle commands that might replace content or state restores
     this.#engine.on('change', () => {
-      if (currentResizer) {
-        currentResizer.destroy();
-        currentResizer = null;
+      if (this.#currentResizer) {
+        this.#currentResizer.destroy();
+        this.#currentResizer = null;
       }
     });
   }
+
+  #onClick = (e) => {
+    if (this.#currentResizer) {
+      this.#currentResizer.destroy();
+      this.#currentResizer = null;
+    }
+
+    if (e.target.tagName === 'IMG') {
+      this.#currentResizer = new ImageResizer(e.target);
+    }
+  };
 
   #setupPlaceholder() {
     const contentEl = this.#engine.contentEl;
@@ -177,10 +180,10 @@ export class RichTextEditor {
     return this.#engine.getHTML();
   }
 
-  /** Set HTML content (will be normalized). */
+  /** Set HTML content (normalized and sanitized). */
   setHTML(html) {
-    const normalized = normalizeHTML(html, this.#classMap);
-    this.#engine.setHTML(normalized);
+    const cleanHTML = normalizeHTML(html || '', this.#classMap);
+    this.#engine.setHTML(cleanHTML);
   }
 
   /** Get plain text content. */
@@ -205,10 +208,15 @@ export class RichTextEditor {
 
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {
-    document.removeEventListener('selectionchange', this._selectionHandler);
     document.removeEventListener('mousedown', this._resizerCleanup);
+    this.#engine.contentEl.removeEventListener('click', this.#onClick);
+    
+    if (this.#currentResizer) {
+      this.#currentResizer.destroy();
+    }
+
     this.#engine.destroy();
-    if (this.#toolbar.destroy) this.#toolbar.destroy();
+    this.#toolbar.destroy();
     this.#wrapper.remove();
   }
 }

@@ -18,10 +18,6 @@ export class ImageResizer {
     // though usually handled by resize/scroll listeners if we added them.
   }
 
-  #attachListeners() {
-    // Listeners are attached to handles in #createOverlay
-  }
-
   #createOverlay() {
     this.#overlay = document.createElement('div');
     this.#overlay.className = 'absolute border-2 border-blue-500 pointer-events-none z-[50]';

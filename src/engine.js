@@ -15,10 +15,26 @@ export class EditorEngine {
 
   constructor(contentEl, { onChange = () => {}, classMap = CLASS_MAP } = {}) {
     this.#root = contentEl;
+    this.#root.style.position = 'relative'; // Ensure resizer can be absolute
     this.#onChange = onChange;
     this.#classMap = classMap;
     this.#commands = createCommandRegistry(this.#root, this.#classMap);
     this.#history = new History(this.#root);
+
+    // Disable native browser resize handles and table editing
+    try {
+      document.execCommand('enableObjectResizing', false, 'false');
+      document.execCommand('enableInlineTableEditing', false, 'false');
+    } catch (e) { /* ignore */ }
+    
+    // Add global CSS to root to hide handles in WebKit/Blink
+    this.#root.style.outline = 'none';
+    const style = document.createElement('style');
+    style.textContent = `
+      [contenteditable] img { outline: none; transition: none !important; }
+      [contenteditable] img::selection { background: transparent; }
+    `;
+    document.head.appendChild(style);
 
     this.#setupContentEditable();
     this.#bindEvents();
@@ -87,7 +103,12 @@ export class EditorEngine {
 
   /** Get normalized HTML content. */
   getHTML() {
-    return this.#root.innerHTML;
+    // Clone to avoid modifying the active DOM
+    const clone = this.#root.cloneNode(true);
+    // Remove resizer overlays if any leaked in
+    const overlays = clone.querySelectorAll('[data-rt-resizer]');
+    overlays.forEach(el => el.remove());
+    return clone.innerHTML;
   }
 
   /** Set HTML content (normalized). */
@@ -343,6 +364,9 @@ export class EditorEngine {
         this.#root.replaceChild(p, child);
         changed = true;
       } else if (child.nodeType === Node.ELEMENT_NODE) {
+        // Skip resizer overlays or other ignored elements
+        if (child.hasAttribute('data-rt-resizer') || child.hasAttribute('data-rt-ignore')) continue;
+
         const tag = child.tagName.toLowerCase();
         if (tag === 'div' || tag === 'br') {
            const p = document.createElement('p');

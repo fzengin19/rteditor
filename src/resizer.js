@@ -15,15 +15,9 @@ export class ImageResizer {
     this.#img = img;
     this.#aspectRatio = img.naturalWidth / img.naturalHeight || 1;
     this.#createOverlay();
-    this.#attachScrollListener();
-  }
-
-  #attachScrollListener() {
-    const root = this.#img.closest('[contenteditable]');
-    if (root) {
-      this._onScroll = () => this.#updateOverlayPosition();
-      root.addEventListener('scroll', this._onScroll);
-    }
+    
+    // Periodically update position if the editor has layout shifts,
+    // though usually handled by resize/scroll listeners if we added them.
   }
 
   #attachListeners() {
@@ -33,15 +27,25 @@ export class ImageResizer {
   #createOverlay() {
     this.#overlay = document.createElement('div');
     this.#overlay.className = 'absolute border-2 border-blue-500 pointer-events-none z-[50]';
+    this.#overlay.setAttribute('data-rt-resizer', 'true');
     this.#updateOverlayPosition();
 
-    const handlePositions = ['bottom-right']; // Start with just one for simplicity/reliability
+    const handlePositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
     for (const pos of handlePositions) {
       const handle = document.createElement('div');
-      handle.className = 'absolute w-3 h-3 bg-blue-600 border border-white rounded-full pointer-events-auto cursor-nwse-resize transform translate-x-1/2 translate-y-1/2';
-      handle.style.bottom = '0';
-      handle.style.right = '0';
+      handle.className = `absolute w-3 h-3 bg-blue-600 border border-white rounded-full pointer-events-auto z-[60] transform translate-x-1/2 translate-y-1/2`;
       
+      // Position the handles
+      if (pos.includes('top')) handle.style.top = '-6px';
+      if (pos.includes('bottom')) handle.style.bottom = '-6px';
+      if (pos.includes('left')) handle.style.left = '-6px';
+      if (pos.includes('right')) handle.style.right = '-6px';
+
+      // Set cursor
+      if (pos === 'top-left' || pos === 'bottom-right') handle.className += ' cursor-nwse-resize';
+      else handle.className += ' cursor-nesw-resize';
+      
+      handle.setAttribute('data-rt-resizer-handle', 'true');
       handle.addEventListener('mousedown', (e) => this.#onMouseDown(e));
       this.#overlay.appendChild(handle);
       this.#handles.push(handle);
@@ -56,24 +60,25 @@ export class ImageResizer {
   }
 
   #updateOverlayPosition() {
-    const rect = this.#img.getBoundingClientRect();
     const root = this.#img.closest('[contenteditable]');
     if (!root) return;
 
-    const rootRect = root.getBoundingClientRect();
+    // Use offset-based positioning relative to the [relative] editor root
+    // We calculate the total offset if the image is nested
+    let top = 0;
+    let left = 0;
+    let current = this.#img;
     
-    // Account for scroll position and border widths
-    // getBoundingClientRect is relative to viewport.
-    // style.top/left for an absolute element inside a relative parent is relative to the top-left of the content area (including scroll but excluding border).
-    
-    const style = window.getComputedStyle(root);
-    const borderTop = parseInt(style.borderTopWidth, 10) || 0;
-    const borderLeft = parseInt(style.borderLeftWidth, 10) || 0;
+    while (current && current !== root) {
+      top += current.offsetTop;
+      left += current.offsetLeft;
+      current = current.offsetParent;
+    }
 
-    this.#overlay.style.top = `${rect.top - rootRect.top + root.scrollTop - borderTop}px`;
-    this.#overlay.style.left = `${rect.left - rootRect.left + root.scrollLeft - borderLeft}px`;
-    this.#overlay.style.width = `${rect.width}px`;
-    this.#overlay.style.height = `${rect.height}px`;
+    this.#overlay.style.top = `${top}px`;
+    this.#overlay.style.left = `${left}px`;
+    this.#overlay.style.width = `${this.#img.offsetWidth}px`;
+    this.#overlay.style.height = `${this.#img.offsetHeight}px`;
   }
 
   #onMouseDown(e) {
@@ -84,12 +89,16 @@ export class ImageResizer {
     this.#startWidth = this.#img.clientWidth;
 
     const onMouseMove = (moveEvent) => this.#onMouseMove(moveEvent);
-    const onMouseUp = () => {
+    const onMouseUp = (upEvent) => {
       this.#isResizing = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      // Trigger change in editor
-      this.#img.closest('[contenteditable]').dispatchEvent(new Event('input', { bubbles: true }));
+      
+      // Dispatch input to trigger changes (this will destroy THIS resizer via EditorEngine -> change event)
+      const root = this.#img.closest('[contenteditable]');
+      if (root) {
+        root.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     };
 
     document.addEventListener('mousemove', onMouseMove);
@@ -107,10 +116,6 @@ export class ImageResizer {
   }
 
   destroy() {
-    const root = this.#img?.closest('[contenteditable]');
-    if (root && this._onScroll) {
-      root.removeEventListener('scroll', this._onScroll);
-    }
     if (this.#overlay && this.#overlay.parentNode) {
       this.#overlay.parentNode.removeChild(this.#overlay);
     }

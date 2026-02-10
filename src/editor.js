@@ -14,6 +14,7 @@ export class RichTextEditor {
   #options;
   #classMap;
   #currentResizer = null;
+  #justResized = false;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -124,16 +125,27 @@ export class RichTextEditor {
       if (this.#currentResizer) {
         this.#currentResizer.destroy();
         this.#currentResizer = null;
+        // Set flag to prevent immediate re-creation on the trailing 'click' event
+        this.#justResized = true;
+        setTimeout(() => { this.#justResized = false; }, 100);
       }
     });
   }
 
   #onClick = (e) => {
+    // 1. If we just finished a resize, don't do anything for this click cycle
+    if (this.#justResized) return;
+
+    // 2. If clicking a resizer handle, ignore
+    if (e.target.hasAttribute('data-rt-resizer-handle')) return;
+
+    // 3. Clear current resizer if clicking elsewhere or a new image
     if (this.#currentResizer) {
       this.#currentResizer.destroy();
       this.#currentResizer = null;
     }
 
+    // 4. If clicking an image, create a new resizer
     if (e.target.tagName === 'IMG') {
       this.#currentResizer = new ImageResizer(e.target);
     }

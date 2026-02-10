@@ -73,17 +73,26 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const range = sel.getRangeAt(0);
     const saved = saveSelection(root);
 
-    // Identify all blocks that intersect the selection
-    const blocks = Array.from(root.children).filter(child => {
-      return range.intersectsNode(child) && BLOCK_TAGS.includes(child.tagName.toLowerCase());
+    // Identify all blocks in the editor
+    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+    
+    // Filter to those that intersect the selection
+    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
+
+    if (selectedBlocks.length === 0) return;
+
+    // Filter to target only "leaf" blocks in the selection (innermost blocks)
+    // A block is a "leaf" if none of its descendants are also in selectedBlocks
+    const leafBlocks = selectedBlocks.filter(block => {
+      return !selectedBlocks.some(other => block !== other && block.contains(other));
     });
 
-    if (blocks.length === 0) return;
+    if (leafBlocks.length === 0) return;
 
-    // Toggle logic: if the first block matches the target, we toggle all to 'p'
-    const targetTag = blocks[0].tagName.toLowerCase() === tagName ? 'p' : tagName;
+    // Toggle logic: if the first leaf block matches the target, we toggle all to 'p'
+    const targetTag = leafBlocks[0].tagName.toLowerCase() === tagName ? 'p' : tagName;
 
-    blocks.forEach(block => {
+    leafBlocks.forEach(block => {
       const newBlock = document.createElement(targetTag);
       newBlock.className = getClassFor(targetTag, classMap);
 

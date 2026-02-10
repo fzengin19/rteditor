@@ -70,25 +70,32 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
 
-    const block = getClosestBlock(sel.getRangeAt(0).startContainer, root);
-    if (!block) return;
+    const range = sel.getRangeAt(0);
+    const saved = saveSelection(root);
 
-    const targetTag = block.tagName.toLowerCase() === tagName ? 'p' : tagName;
-    const newBlock = document.createElement(targetTag);
-    newBlock.className = getClassFor(targetTag, classMap);
+    // Identify all blocks that intersect the selection
+    const blocks = Array.from(root.children).filter(child => {
+      return range.intersectsNode(child) && BLOCK_TAGS.includes(child.tagName.toLowerCase());
+    });
 
-    // Move all children from old block to new block
-    while (block.firstChild) {
-      newBlock.appendChild(block.firstChild);
+    if (blocks.length === 0) return;
+
+    // Toggle logic: if the first block matches the target, we toggle all to 'p'
+    const targetTag = blocks[0].tagName.toLowerCase() === tagName ? 'p' : tagName;
+
+    blocks.forEach(block => {
+      const newBlock = document.createElement(targetTag);
+      newBlock.className = getClassFor(targetTag, classMap);
+
+      while (block.firstChild) {
+        newBlock.appendChild(block.firstChild);
+      }
+      block.parentNode.replaceChild(newBlock, block);
+    });
+
+    if (saved) {
+      restoreSelection(root, saved);
     }
-    block.parentNode.replaceChild(newBlock, block);
-
-    // Restore cursor in new block
-    const range = document.createRange();
-    range.selectNodeContents(newBlock);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
   }
 
   commands.set('h1',        () => setBlockType('h1'));

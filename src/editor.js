@@ -65,7 +65,10 @@ export class RichTextEditor {
 
     // Create engine (manages contenteditable)
     this.#engine = new EditorEngine(contentEl, {
-      onChange: (html) => this.#options.onChange(html),
+      onChange: (html) => {
+        const normalized = normalizeHTML(html, this.#classMap);
+        this.#options.onChange(normalized);
+      },
       classMap: this.#classMap,
     });
 

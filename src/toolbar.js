@@ -52,6 +52,7 @@ export class Toolbar {
   #buttons = {};    // name → { el, def }
   #dropdown = null; // heading dropdown element
   #promptOverlay = null;
+  #dropdownCleanupHandlers = [];
 
   constructor(editor, toolbarItems = DEFAULT_TOOLBAR) {
     this.#editor = editor;
@@ -227,13 +228,14 @@ export class Toolbar {
       btn.setAttribute('aria-expanded', (!isHidden).toString());
     });
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click (ANALYSIS 2.1 / BUG-002)
     const closeOnOutside = (e) => {
       if (!wrapper.contains(e.target)) {
         dropdown.classList.add('hidden');
       }
     };
     document.addEventListener('click', closeOnOutside);
+    this.#dropdownCleanupHandlers.push(closeOnOutside);
 
     wrapper.appendChild(btn);
     wrapper.appendChild(dropdown);
@@ -327,5 +329,10 @@ export class Toolbar {
     if (this.#dropdown && this.#dropdown.parentNode) {
        this.#dropdown.parentNode.removeChild(this.#dropdown);
     }
+
+    this.#dropdownCleanupHandlers.forEach(handler => {
+      document.removeEventListener('click', handler);
+    });
+    this.#dropdownCleanupHandlers = [];
   }
 }

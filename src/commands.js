@@ -273,12 +273,17 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     img.alt = alt;
     img.className = getClassFor('img', classMap);
 
+    // Create a paragraph wrapper (ANALYSIS 3.3)
+    const p = document.createElement('p');
+    p.className = getClassFor('p', classMap);
+    p.appendChild(img);
+
     // Insert after current block or at cursor
     const block = getClosestBlock(range.startContainer, root);
     if (block && block.parentNode && block.parentNode === root) {
-      block.parentNode.insertBefore(img, block.nextSibling);
+      block.parentNode.insertBefore(p, block.nextSibling);
     } else {
-      range.insertNode(img);
+      range.insertNode(p);
     }
   });
 

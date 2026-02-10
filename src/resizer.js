@@ -9,11 +9,10 @@ export class ImageResizer {
   #isResizing = false;
   #startWidth = 0;
   #startX = 0;
-  #aspectRatio = 1;
+  #startX = 0;
 
   constructor(img) {
     this.#img = img;
-    this.#aspectRatio = img.naturalWidth / img.naturalHeight || 1;
     this.#createOverlay();
     
     // Periodically update position if the editor has layout shifts,

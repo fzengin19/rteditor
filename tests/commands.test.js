@@ -28,9 +28,8 @@ describe('command registry', () => {
     }
   });
 
-  describe('inline: bold', () => {
-    it('wraps selected text in <strong> with class', () => {
-      // Select "hello"
+  describe('inline formats', () => {
+    it('exec("bold") wraps selection in <strong>', () => {
       const textNode = root.querySelector('p').firstChild;
       const range = document.createRange();
       range.setStart(textNode, 0);
@@ -40,11 +39,58 @@ describe('command registry', () => {
       sel.addRange(range);
 
       registry.exec('bold');
+      const el = root.querySelector('strong');
+      expect(el).not.toBeNull();
+      expect(el.className).toBe(CLASS_MAP.strong);
+      expect(el.textContent).toBe('hello');
+    });
 
-      const strong = root.querySelector('strong');
-      expect(strong).not.toBeNull();
-      expect(strong.className).toBe(CLASS_MAP.strong);
-      expect(strong.textContent).toBe('hello');
+    it('exec("italic") wraps selection in <em>', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('italic');
+      const el = root.querySelector('em');
+      expect(el).not.toBeNull();
+      expect(el.className).toBe(CLASS_MAP.em);
+      expect(el.textContent).toBe('hello');
+    });
+
+    it('exec("underline") wraps selection in <u>', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('underline');
+      const el = root.querySelector('u');
+      expect(el).not.toBeNull();
+      expect(el.className).toBe(CLASS_MAP.u);
+      expect(el.textContent).toBe('hello');
+    });
+
+    it('exec("strikethrough") wraps selection in <s>', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('strikethrough');
+      const el = root.querySelector('s');
+      expect(el).not.toBeNull();
+      expect(el.className).toBe(CLASS_MAP.s);
+      expect(el.textContent).toBe('hello');
     });
   });
 

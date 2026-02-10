@@ -139,6 +139,14 @@ function processNodes(container, classMap) {
     applyClasses(el, classMap);
     sanitizeAttributes(el, tag);
   }
+
+  // 5. Cleanup: Remove Zero-Width Spaces (\u200B) from all text nodes (ANALYSIS 1.4)
+  const walker = container.ownerDocument.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let textNode;
+  while (textNode = walker.nextNode()) {
+    textNode.textContent = textNode.textContent.replace(/\u200B/g, '');
+    // If text node became empty, it will be cleaned up by group flushing or normalization
+  }
 }
 
 function applyClasses(el, classMap) {

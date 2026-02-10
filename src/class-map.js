@@ -16,10 +16,7 @@ export const CLASS_MAP = {
   ol:         'list-decimal pl-6 my-4 space-y-1',
   li:         'text-base leading-7',
 
-  // Quote & code blocks
   blockquote: 'border-l-4 border-gray-300 pl-4 py-1 my-4 italic text-gray-600',
-  pre:        'bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto font-mono text-sm my-4',
-  code:       'font-mono text-sm bg-gray-100 px-1.5 py-0.5 rounded',
 
   // Inline formatting
   strong:     'font-bold',

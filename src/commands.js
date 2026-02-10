@@ -187,29 +187,6 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     }
   });
 
-  // --- CODE BLOCK ---
-
-  commands.set('codeBlock', () => {
-    const sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
-    const block = getClosestBlock(sel.getRangeAt(0).startContainer, root);
-    if (!block) return;
-
-    if (block.tagName === 'PRE') {
-      const p = document.createElement('p');
-      p.className = getClassFor('p', classMap);
-      p.textContent = block.textContent;
-      block.parentNode.replaceChild(p, block);
-    } else {
-      const pre = document.createElement('pre');
-      pre.className = getClassFor('pre', classMap);
-      const code = document.createElement('code');
-      code.className = getClassFor('code', classMap);
-      code.textContent = block.textContent;
-      pre.appendChild(code);
-      block.parentNode.replaceChild(pre, block);
-    }
-  });
 
   // --- LINK ---
 

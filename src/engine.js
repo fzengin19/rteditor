@@ -2,7 +2,7 @@ import { CLASS_MAP, getClassFor } from './class-map.js';
 import { createCommandRegistry } from './commands.js';
 import { History } from './history.js';
 import { getClosestBlock, findParentTag, saveSelection, restoreSelection } from './selection.js';
-import { normalizeHTML } from './normalizer.js';
+import { normalizeHTML, normalizeElement } from './normalizer.js';
 
 export class EditorEngine {
   #root;
@@ -355,40 +355,9 @@ export class EditorEngine {
    * Runs after typing to keep DOM clean and secure.
    */
   #normalizeContent() {
-    // We use the same robust normalization as setHTML.
-    // To avoid too many parses, we only do this if it looks messy,
-    // or we can just rely on the existing logic if it was working better for real-time.
-    // Actually, calling normalizeHTML on every input might be too jumpy for cursor.
-    // Let's keep a simplified version for real-time or optimize it.
-    
-    const children = Array.from(this.#root.childNodes);
-    let changed = false;
-
-    for (const child of children) {
-      if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-        const p = document.createElement('p');
-        p.className = getClassFor('p', this.#classMap);
-        p.textContent = child.textContent;
-        this.#root.replaceChild(p, child);
-        changed = true;
-      } else if (child.nodeType === Node.ELEMENT_NODE) {
-        // Skip resizer overlays or other ignored elements
-        if (child.hasAttribute('data-rt-resizer') || child.hasAttribute('data-rt-ignore')) continue;
-
-        const tag = child.tagName.toLowerCase();
-        if (tag === 'div' || tag === 'br') {
-           const p = document.createElement('p');
-           p.className = getClassFor('p', this.#classMap);
-           while (child.firstChild) p.appendChild(child.firstChild);
-           if (tag === 'br') p.appendChild(document.createElement('br'));
-           this.#root.replaceChild(p, child);
-           changed = true;
-        }
-      }
-    }
-    
-    // If we inserted an image or link at root, it should eventually be wrapped.
-    // However, we don't want to re-parse the whole thing on every keydown.
+    // BUG-020: Use unified normalization logic from normalizer.js
+    // This replaces the duplicated manual loop with a robust, shared implementation.
+    normalizeElement(this.#root, this.#classMap);
   }
 
   #setCursorToStart(el) {

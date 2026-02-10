@@ -52,13 +52,21 @@ export function normalizeHTML(html, classMap = CLASS_MAP) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const container = doc.body;
 
+  normalizeElement(container, classMap);
+
+  return container.innerHTML;
+}
+
+/**
+ * Normalize an existing DOM element in-place.
+ * Efficiently applies classes, sanitizes attributes, and ensures block wrapping.
+ */
+export function normalizeElement(container, classMap = CLASS_MAP) {
   // 1. Process all elements (sanitize, alias, strip)
   processNodes(container, classMap);
 
   // 2. Final pass: Ensure all root content is wrapped in block tags (usually <p>)
   ensureBlockWrappers(container, classMap);
-
-  return container.innerHTML;
 }
 
 /**
@@ -109,6 +117,11 @@ function processNodes(container, classMap) {
     if (!el.parentNode) continue;
 
     const tag = el.tagName.toLowerCase();
+
+    // 0. Skip editor-internal elements (handles, overlays, etc.)
+    if (el.hasAttribute('data-rt-resizer') || el.hasAttribute('data-rt-ignore')) {
+      continue;
+    }
 
     // 1. Remove dangerous/blocked tags entirely
     if (BLOCKED_TAGS.has(tag)) {

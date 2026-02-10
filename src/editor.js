@@ -31,7 +31,7 @@ export class RichTextEditor {
       ...options,
     };
 
-    // Apply custom class map overrides
+    // Apply custom class map overrides (partial updates)
     if (this.#options.classMap) {
       Object.assign(CLASS_MAP, this.#options.classMap);
     }

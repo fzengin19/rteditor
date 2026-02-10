@@ -12,8 +12,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "types"
   ],
+  "types": "./types/index.d.ts",
   "scripts": {
     "dev": "vite serve dev",
     "build": "vite build",

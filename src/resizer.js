@@ -28,7 +28,7 @@ export class ImageResizer {
     const handlePositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
     for (const pos of handlePositions) {
       const handle = document.createElement('div');
-      handle.className = `absolute w-3 h-3 bg-blue-600 border border-white rounded-full pointer-events-auto z-[60] transform translate-x-1/2 translate-y-1/2`;
+      handle.className = `absolute w-3 h-3 bg-blue-600 border border-white rounded-full pointer-events-auto z-[60] transform translate-x-1/2 translate-y-1/2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400`;
       
       // Position the handles
       if (pos.includes('top')) handle.style.top = '-6px';
@@ -42,10 +42,18 @@ export class ImageResizer {
       
       handle.setAttribute('data-rt-resizer-handle', 'true');
       handle.setAttribute('data-rt-resizer-pos', pos);
+
+      // Accessibility
+      handle.tabIndex = 0;
+      handle.setAttribute('role', 'slider');
+      handle.setAttribute('aria-label', `Resize image from ${pos.replace('-', ' ')}`);
+      handle.setAttribute('aria-valuemin', '50');
+      handle.setAttribute('aria-valuenow', this.#img.clientWidth.toString());
       
-      // Support both mouse and touch
+      // Support mouse, touch, and keyboard
       handle.addEventListener('mousedown', (e) => this.#onStart(e, pos));
       handle.addEventListener('touchstart', (e) => this.#onStart(e, pos), { passive: false });
+      handle.addEventListener('keydown', (e) => this.#onKeyDown(e, pos));
       
       this.#overlay.appendChild(handle);
       this.#handles.push(handle);
@@ -133,10 +141,47 @@ export class ImageResizer {
     }
 
     const newWidth = Math.max(50, this.#startWidth + delta);
-    
-    this.#img.style.width = `${newWidth}px`;
+    this.#applySize(newWidth);
+  }
+
+  #onKeyDown(e, pos) {
+    const step = e.shiftKey ? 50 : 10;
+    let delta = 0;
+
+    if (e.key === 'ArrowRight') delta = step;
+    if (e.key === 'ArrowLeft') delta = -step;
+    if (e.key === 'ArrowDown') delta = step; // Also support vertical arrows for width scaling
+    if (e.key === 'ArrowUp') delta = -step;
+
+    if (delta === 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Invert delta if using left-side handles
+    if (pos.includes('left')) {
+      delta = -delta;
+    }
+
+    const newWidth = Math.max(50, this.#img.clientWidth + delta);
+    this.#applySize(newWidth);
+
+    // Trigger input event to save history
+    const root = this.#img.closest('[contenteditable]');
+    if (root) {
+      root.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  #applySize(width) {
+    this.#img.style.width = `${width}px`;
     this.#img.style.height = 'auto'; // Maintain aspect ratio
     this.#updateOverlayPosition();
+    
+    // Update ARIA values on handles
+    for (const handle of this.#handles) {
+      handle.setAttribute('aria-valuenow', width.toString());
+    }
   }
 
   destroy() {

@@ -97,4 +97,33 @@ describe('ImageResizer Integration', () => {
     
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
+
+  it('resizes image using arrow keys when handle is focused', () => {
+    editor.setHTML('<p><img src="test.jpg" style="width: 100px"></p>');
+    const img = container.querySelector('img');
+    
+    // Dynamic mock for clientWidth based on style width
+    Object.defineProperty(img, 'clientWidth', { 
+      get: () => parseInt(img.style.width) || 100 
+    });
+    
+    img.click();
+    const handle = container.querySelector('[data-rt-resizer-pos="bottom-right"]');
+    
+    // Simulate ArrowRight (expand)
+    handle.dispatchEvent(new KeyboardEvent('keydown', { 
+      key: 'ArrowRight',
+      bubbles: true 
+    }));
+    
+    expect(img.style.width).toBe('110px');
+    
+    // Simulate ArrowLeft (shrink)
+    handle.dispatchEvent(new KeyboardEvent('keydown', { 
+      key: 'ArrowLeft',
+      bubbles: true 
+    }));
+    
+    expect(img.style.width).toBe('100px');
+  });
 });

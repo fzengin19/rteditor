@@ -1,5 +1,12 @@
 import { CLASS_MAP, getClassFor } from './class-map.js';
 
+// Tags we strictly block (dangerous or unwanted)
+const BLOCKED_TAGS = new Set([
+  'script', 'style', 'iframe', 'object', 'embed', 'form', 
+  'input', 'textarea', 'button', 'select', 'meta', 'link',
+  'canvas', 'svg', 'audio', 'video'
+]);
+
 // Tags we allow in editor output
 const ALLOWED_TAGS = new Set([
   'p', 'h1', 'h2', 'h3', 'h4',
@@ -15,7 +22,13 @@ const ALLOWED_ATTRS = {
   img: ['src', 'alt'],
 };
 
-// Tag normalization: old → new
+// Dangerous URL schemes
+const BLOCKED_PROTOCOLS = /^(javascript|data|vbscript|file):/i;
+
+// Tags that count as blocks (don't need wrapping at root)
+const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote', 'pre']);
+
+// Tag normalization: old → new (aliasing)
 const TAG_ALIASES = {
   b:      'strong',
   i:      'em',
@@ -25,70 +38,104 @@ const TAG_ALIASES = {
 
 /**
  * Normalize HTML string: ensure every element has correct Tailwind classes,
- * normalize deprecated tags, strip disallowed attributes.
+ * normalize deprecated tags, strip disallowed attributes and dangerous content.
  */
 export function normalizeHTML(html, classMap = CLASS_MAP) {
+  if (!html) return '';
+  
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
   const container = doc.body.firstChild;
 
-  // Wrap bare text nodes in <p>
-  wrapBareTextNodes(container, classMap);
+  // 1. Process all elements (sanitize, alias, strip)
+  processNodes(container, classMap);
 
-  // Process all elements
-  processNode(container, classMap);
+  // 2. Final pass: Ensure all root content is wrapped in block tags (usually <p>)
+  ensureBlockWrappers(container, classMap);
 
   return container.innerHTML;
 }
 
-function wrapBareTextNodes(container, classMap) {
-  const childNodes = Array.from(container.childNodes);
-  for (const node of childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+/**
+ * Ensures all children of the container are blocks.
+ * Wraps sequences of inline content (text nodes or inline elements) into <p> tags.
+ */
+function ensureBlockWrappers(container, classMap) {
+  const nodes = Array.from(container.childNodes);
+  let currentGroup = [];
+
+  const flushGroup = () => {
+    if (currentGroup.length === 0) return;
+    
+    // Check if group is just whitespace
+    const isOnlyWhitespace = currentGroup.every(n => n.nodeType === Node.TEXT_NODE && !n.textContent.trim());
+    
+    if (!isOnlyWhitespace) {
       const p = container.ownerDocument.createElement('p');
       p.className = getClassFor('p', classMap);
-      p.textContent = node.textContent;
-      container.replaceChild(p, node);
+      const first = currentGroup[0];
+      container.insertBefore(p, first);
+      currentGroup.forEach(node => p.appendChild(node));
+    } else {
+      // Just remove the whitespace nodes or leave them? 
+      // Usually cleaner to remove if they are between blocks
+      currentGroup.forEach(node => node.remove());
+    }
+    currentGroup = [];
+  };
+
+  for (const node of nodes) {
+    const isBlock = node.nodeType === Node.ELEMENT_NODE && BLOCK_TAGS.has(node.tagName.toLowerCase());
+    
+    if (isBlock) {
+      flushGroup();
+    } else {
+      currentGroup.push(node);
     }
   }
+  flushGroup();
 }
 
-function processNode(container, classMap) {
-  // Use a recursive approach or a queue to ensure nested disallowed tags are handled
-  // querySelectorAll('*') returns a static list, so we must be careful with mutations.
-  let elements = Array.from(container.querySelectorAll('*'));
+function processNodes(container, classMap) {
+  // Use a snapshot
+  const elements = Array.from(container.querySelectorAll('*'));
   
-  while (elements.length > 0) {
-    const el = elements.shift();
-    if (!el.parentNode) continue; // Already removed in previous iteration
+  for (const el of elements) {
+    if (!el.parentNode) continue;
 
     const tag = el.tagName.toLowerCase();
 
-    // 1. Replace aliased tags (b→strong, i→em, etc.)
-    if (TAG_ALIASES[tag]) {
-      const newEl = el.ownerDocument.createElement(TAG_ALIASES[tag]);
-      while (el.firstChild) newEl.appendChild(el.firstChild);
-      el.parentNode.replaceChild(newEl, el);
-      applyClasses(newEl, classMap);
-      // Re-scan nested items
-      elements = Array.from(container.querySelectorAll('*'));
+    // 1. Remove dangerous/blocked tags entirely
+    if (BLOCKED_TAGS.has(tag)) {
+      el.remove();
       continue;
     }
 
-    // 2. Remove disallowed tags (div, span, etc.) but keep their children
+    // 2. Replace aliased tags (b→strong, etc.)
+    if (TAG_ALIASES[tag]) {
+      const targetTag = TAG_ALIASES[tag];
+      const newEl = el.ownerDocument.createElement(targetTag);
+      while (el.firstChild) {
+        newEl.appendChild(el.firstChild);
+      }
+      el.parentNode.replaceChild(newEl, el);
+      applyClasses(newEl, classMap);
+      sanitizeAttributes(newEl, targetTag);
+      continue;
+    }
+
+    // 3. Remove non-aliased disallowed tags (div, span, etc.) but keep children
     if (!ALLOWED_TAGS.has(tag)) {
       const parent = el.parentNode;
       while (el.firstChild) {
         parent.insertBefore(el.firstChild, el);
       }
-      parent.removeChild(el);
-      // Re-scan because structure changed
-      elements = Array.from(container.querySelectorAll('*'));
+      el.remove();
       continue;
     }
 
-    // 3. For allowed tags, ensure correct classes and strip attributes
+    // 4. For allowed tags, ensure classes and strip attributes
     applyClasses(el, classMap);
-    stripAttributes(el, tag);
+    sanitizeAttributes(el, tag);
   }
 }
 
@@ -100,30 +147,42 @@ function applyClasses(el, classMap) {
   }
 }
 
-function stripAttributes(el, tag) {
+function sanitizeAttributes(el, tag) {
   const allowed = ALLOWED_ATTRS[tag] || [];
   const attrs = Array.from(el.attributes);
+  
   for (const attr of attrs) {
-    if (attr.name !== 'class' && !allowed.includes(attr.name)) {
-      el.removeAttribute(attr.name);
+    const name = attr.name.toLowerCase();
+    
+    // Always keep class (applied by applyClasses)
+    if (name === 'class') continue;
+
+    // Block ANY event handlers (on*)
+    if (name.startsWith('on')) {
+      el.removeAttribute(name);
+      continue;
+    }
+
+    // Block non-whitelisted attributes
+    if (!allowed.includes(name)) {
+      el.removeAttribute(name);
+      continue;
+    }
+
+    // Validate URL schemes for href/src
+    if (name === 'href' || name === 'src') {
+      const value = attr.value.trim();
+      if (BLOCKED_PROTOCOLS.test(value)) {
+        el.removeAttribute(name);
+      }
     }
   }
 }
 
 /**
- * Sanitize pasted HTML: remove dangerous content, then normalize.
+ * Sanitize pasted HTML: now a safe alias to normalizeHTML.
+ * DOMParser automatically handles entities and nested tag bypasses.
  */
 export function sanitizeHTML(html, classMap = CLASS_MAP) {
-  // Strip script, style, iframe, object, embed tags entirely
-  let clean = html.replace(/<(script|style|iframe|object|embed|form|input|textarea|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
-  clean = clean.replace(/<(script|style|iframe|object|embed|form|input|textarea|button)[^>]*\/?>/gi, '');
-
-  // Strip event handler attributes
-  clean = clean.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-
-  // Strip javascript: URLs
-  clean = clean.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, '');
-
-  // Now normalize
-  return normalizeHTML(clean, classMap);
+  return normalizeHTML(html, classMap);
 }

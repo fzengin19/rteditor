@@ -19,7 +19,7 @@ describe('normalizeHTML', () => {
   it('preserves strong/em while flattening parents', () => {
     const html = '<div style="color:red"><span><strong>Bold</strong></span></div>';
     const normalized = normalizeHTML(html);
-    expect(normalized).toBe(`<strong class="${CLASS_MAP.strong}">Bold</strong>`);
+    expect(normalized).toBe(`<p class="${CLASS_MAP.p}"><strong class="${CLASS_MAP.strong}">Bold</strong></p>`);
   });
 
   it('replaces existing classes with correct Tailwind classes', () => {
@@ -90,5 +90,6 @@ describe('sanitizeHTML', () => {
     const result = sanitizeHTML(input);
     expect(result).toContain('src="photo.jpg"');
     expect(result).toContain('alt="Photo"');
+    expect(result).toContain('<p'); // Root level img is wrapped in p
   });
 });

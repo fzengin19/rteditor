@@ -29,12 +29,16 @@ export class EditorEngine {
     
     // Add global CSS to root to hide handles in WebKit/Blink
     this.#root.style.outline = 'none';
-    const style = document.createElement('style');
-    style.textContent = `
-      [contenteditable] img { outline: none; transition: none !important; }
-      [contenteditable] img::selection { background: transparent; }
-    `;
-    document.head.appendChild(style);
+    const styleId = 'rt-editor-engine-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        [contenteditable] img { outline: none; transition: none !important; }
+        [contenteditable] img::selection { background: transparent; }
+      `;
+      document.head.appendChild(style);
+    }
 
     this.#setupContentEditable();
     this.#bindEvents();

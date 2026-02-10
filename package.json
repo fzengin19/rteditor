@@ -1,0 +1,30 @@
+{
+  "name": "rteditor",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lightweight rich text editor with native Tailwind CSS v4 class output",
+  "main": "./dist/rteditor.umd.js",
+  "module": "./dist/rteditor.es.js",
+  "exports": {
+    ".": {
+      "import": "./dist/rteditor.es.js",
+      "require": "./dist/rteditor.umd.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite serve dev",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vite": "^6.1.0",
+    "vitest": "^3.0.0",
+    "jsdom": "^26.0.0"
+  },
+  "keywords": ["rich-text-editor", "wysiwyg", "tailwindcss", "contenteditable"],
+  "license": "MIT"
+}

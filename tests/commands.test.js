@@ -124,4 +124,27 @@ describe('command registry', () => {
       expect(bq.children[1].textContent).toBe('B');
     });
   });
+
+  describe('command: clearFormatting', () => {
+    it('resets blocks to paragraphs and removes inline styles', () => {
+      root.innerHTML = `<h1 class="${CLASS_MAP.h1}"><strong>Hello</strong> <em>World</em></h1>`;
+      const h1 = root.querySelector('h1');
+      
+      const range = document.createRange();
+      range.selectNodeContents(h1);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('clearFormatting');
+
+      const p = root.querySelector('p');
+      expect(p).not.toBeNull();
+      expect(p.className).toBe(CLASS_MAP.p);
+      expect(p.innerHTML).toBe('Hello World');
+      expect(root.querySelector('h1')).toBeNull();
+      expect(root.querySelector('strong')).toBeNull();
+      expect(root.querySelector('em')).toBeNull();
+    });
+  });
 });

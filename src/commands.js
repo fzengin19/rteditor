@@ -362,10 +362,48 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const range = sel.getRangeAt(0);
     if (range.collapsed) return;
 
-    const text = range.toString();
-    range.deleteContents();
-    range.insertNode(document.createTextNode(text));
+    const saved = saveSelection(root);
+
+    // Identify all blocks in the selection
+    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
+
+    // Filter to leaf blocks
+    const leafBlocks = selectedBlocks.filter(block => {
+      return !selectedBlocks.some(other => block !== other && block.contains(other));
+    });
+
+    if (leafBlocks.length === 0) return;
+
+    leafBlocks.forEach(block => {
+      // 1. Reset block to paragraph
+      const p = document.createElement('p');
+      p.className = getClassFor('p', classMap);
+      
+      // 2. Clear inline formatting while moving contents
+      const clearInline = (node, target) => {
+        Array.from(node.childNodes).forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            target.appendChild(child.cloneNode());
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            // Recurse into element but don't keep the element itself (unless it's a BR)
+            if (child.tagName === 'BR') {
+              target.appendChild(child.cloneNode());
+            } else {
+              clearInline(child, target);
+            }
+          }
+        });
+      };
+
+      clearInline(block, p);
+      block.parentNode.replaceChild(p, block);
+    });
+
     root.normalize();
+    if (saved) {
+      restoreSelection(root, saved);
+    }
   });
 
   return {

@@ -4,7 +4,10 @@ import { getClosestBlock, findParentTag } from './selection.js';
 /**
  * Create a command registry bound to an editor root element.
  */
-export function createCommandRegistry(root) {
+/**
+ * Create a command registry bound to an editor root element.
+ */
+export function createCommandRegistry(root, classMap = CLASS_MAP) {
   const commands = new Map();
 
   // --- INLINE COMMANDS ---
@@ -28,7 +31,7 @@ export function createCommandRegistry(root) {
     } else if (range.collapsed) {
       // Cursor only, no selection: insert zero-width space in wrapper
       const el = document.createElement(tagName);
-      el.className = getClassFor(tagName);
+      el.className = getClassFor(tagName, classMap);
       el.textContent = '\u200B';
       range.insertNode(el);
       // Move cursor inside after the zero-width space
@@ -40,7 +43,7 @@ export function createCommandRegistry(root) {
     } else {
       // Wrap selected content
       const el = document.createElement(tagName);
-      el.className = getClassFor(tagName);
+      el.className = getClassFor(tagName, classMap);
       try {
         const fragment = range.extractContents();
         el.appendChild(fragment);
@@ -72,7 +75,7 @@ export function createCommandRegistry(root) {
 
     const targetTag = block.tagName.toLowerCase() === tagName ? 'p' : tagName;
     const newBlock = document.createElement(targetTag);
-    newBlock.className = getClassFor(targetTag);
+    newBlock.className = getClassFor(targetTag, classMap);
 
     // Move all children from old block to new block
     while (block.firstChild) {
@@ -112,7 +115,7 @@ export function createCommandRegistry(root) {
       const fragment = document.createDocumentFragment();
       for (const li of items) {
         const p = document.createElement('p');
-        p.className = getClassFor('p');
+        p.className = getClassFor('p', classMap);
         while (li.firstChild) p.appendChild(li.firstChild);
         fragment.appendChild(p);
       }
@@ -124,7 +127,7 @@ export function createCommandRegistry(root) {
     if (block.tagName === 'LI' && block.parentElement) {
       const oldList = block.parentElement;
       const newList = document.createElement(listTag);
-      newList.className = getClassFor(listTag);
+      newList.className = getClassFor(listTag, classMap);
       while (oldList.firstChild) {
         newList.appendChild(oldList.firstChild);
       }
@@ -134,9 +137,9 @@ export function createCommandRegistry(root) {
 
     // Wrap current block in a list
     const list = document.createElement(listTag);
-    list.className = getClassFor(listTag);
+    list.className = getClassFor(listTag, classMap);
     const li = document.createElement('li');
-    li.className = getClassFor('li');
+    li.className = getClassFor('li', classMap);
     while (block.firstChild) li.appendChild(block.firstChild);
     list.appendChild(li);
     block.parentNode.replaceChild(list, block);
@@ -163,12 +166,12 @@ export function createCommandRegistry(root) {
     if (block.tagName === 'BLOCKQUOTE') {
       // Unwrap: convert to paragraph
       const p = document.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', classMap);
       while (block.firstChild) p.appendChild(block.firstChild);
       block.parentNode.replaceChild(p, block);
     } else {
       const bq = document.createElement('blockquote');
-      bq.className = getClassFor('blockquote');
+      bq.className = getClassFor('blockquote', classMap);
 
       // If block is a P, replace it. Otherwise wrap contents.
       if (block.tagName === 'P') {
@@ -176,7 +179,7 @@ export function createCommandRegistry(root) {
         block.parentNode.replaceChild(bq, block);
       } else {
         const p = document.createElement('p');
-        p.className = getClassFor('p');
+        p.className = getClassFor('p', classMap);
         while (block.firstChild) p.appendChild(block.firstChild);
         bq.appendChild(p);
         block.parentNode.replaceChild(bq, block);
@@ -194,14 +197,14 @@ export function createCommandRegistry(root) {
 
     if (block.tagName === 'PRE') {
       const p = document.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', classMap);
       p.textContent = block.textContent;
       block.parentNode.replaceChild(p, block);
     } else {
       const pre = document.createElement('pre');
-      pre.className = getClassFor('pre');
+      pre.className = getClassFor('pre', classMap);
       const code = document.createElement('code');
-      code.className = getClassFor('code');
+      code.className = getClassFor('code', classMap);
       code.textContent = block.textContent;
       pre.appendChild(code);
       block.parentNode.replaceChild(pre, block);
@@ -233,7 +236,7 @@ export function createCommandRegistry(root) {
 
     const a = document.createElement('a');
     a.href = url;
-    a.className = getClassFor('a');
+    a.className = getClassFor('a', classMap);
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
 
@@ -257,7 +260,7 @@ export function createCommandRegistry(root) {
     const img = document.createElement('img');
     img.src = src;
     img.alt = alt || '';
-    img.className = getClassFor('img');
+    img.className = getClassFor('img', classMap);
 
     // Insert after current block
     const block = getClosestBlock(range.startContainer, root);

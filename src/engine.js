@@ -8,13 +8,15 @@ export class EditorEngine {
   #commands;
   #history;
   #onChange;
+  #classMap;
   #debounceTimer = null;
   #listeners = {};
 
-  constructor(contentEl, { onChange = () => {} } = {}) {
+  constructor(contentEl, { onChange = () => {}, classMap = CLASS_MAP } = {}) {
     this.#root = contentEl;
     this.#onChange = onChange;
-    this.#commands = createCommandRegistry(this.#root);
+    this.#classMap = classMap;
+    this.#commands = createCommandRegistry(this.#root, this.#classMap);
     this.#history = new History(this.#root);
 
     this.#setupContentEditable();
@@ -92,7 +94,7 @@ export class EditorEngine {
     if (!this.#root.firstChild || this.#root.innerHTML.trim() === '' || this.#root.innerHTML === '<br>') {
       this.#root.innerHTML = '';
       const p = document.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', this.#classMap);
       p.appendChild(document.createElement('br'));
       this.#root.appendChild(p);
     }
@@ -150,7 +152,7 @@ export class EditorEngine {
     if (!block) {
       // No block context, create a paragraph
       const p = document.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', this.#classMap);
       p.appendChild(document.createElement('br'));
       this.#root.appendChild(p);
       this.#setCursorToStart(p);
@@ -189,10 +191,10 @@ export class EditorEngine {
     let newTag, newClass;
     if (isListItem) {
       newTag = 'li';
-      newClass = getClassFor('li');
+      newClass = getClassFor('li', this.#classMap);
     } else {
       newTag = 'p';
-      newClass = getClassFor('p');
+      newClass = getClassFor('p', this.#classMap);
     }
 
     const newBlock = document.createElement(newTag);
@@ -231,7 +233,7 @@ export class EditorEngine {
       // Use the normalizer to sanitize pasted HTML
       // Import is static at top level or dynamic here as per plan
       import('./normalizer.js').then(({ sanitizeHTML }) => {
-        const clean = sanitizeHTML(html);
+        const clean = sanitizeHTML(html, this.#classMap);
         this.#insertHTML(clean);
         this.#history.push();
         this.#emitChange();
@@ -243,7 +245,7 @@ export class EditorEngine {
       for (const para of paragraphs) {
         if (!para.trim()) continue;
         const p = document.createElement('p');
-        p.className = getClassFor('p');
+        p.className = getClassFor('p', this.#classMap);
         // Preserve single line breaks as <br>
         const lines = para.split('\n');
         lines.forEach((line, i) => {
@@ -298,21 +300,21 @@ export class EditorEngine {
       if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
         // Wrap bare text in <p>
         const p = document.createElement('p');
-        p.className = getClassFor('p');
+        p.className = getClassFor('p', this.#classMap);
         p.textContent = child.textContent;
         this.#root.replaceChild(p, child);
       } else if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === 'DIV' || child.tagName === 'BR' && child.parentNode === this.#root)) {
         if (child.tagName === 'BR') {
           // BR at root should be wrapped
            const p = document.createElement('p');
-           p.className = getClassFor('p');
+           p.className = getClassFor('p', this.#classMap);
            p.appendChild(child.cloneNode());
            this.#root.replaceChild(p, child);
            continue;
         }
         // Replace <div> with <p>
         const p = document.createElement('p');
-        p.className = getClassFor('p');
+        p.className = getClassFor('p', this.#classMap);
         while (child.firstChild) p.appendChild(child.firstChild);
         this.#root.replaceChild(p, child);
       }

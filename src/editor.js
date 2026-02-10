@@ -12,6 +12,7 @@ export class RichTextEditor {
   #engine;
   #toolbar;
   #options;
+  #classMap;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -32,9 +33,10 @@ export class RichTextEditor {
       ...options,
     };
 
-    // Apply custom class map overrides (partial updates)
+    // Create a per-instance class map (clone the global one)
+    this.#classMap = { ...CLASS_MAP };
     if (this.#options.classMap) {
-      Object.assign(CLASS_MAP, this.#options.classMap);
+      Object.assign(this.#classMap, this.#options.classMap);
     }
 
     const container = typeof target === 'string'
@@ -62,6 +64,7 @@ export class RichTextEditor {
     // Create engine (manages contenteditable)
     this.#engine = new EditorEngine(contentEl, {
       onChange: (html) => this.#options.onChange(html),
+      classMap: this.#classMap,
     });
 
     // Create toolbar integration
@@ -166,7 +169,7 @@ export class RichTextEditor {
 
   /** Get the current HTML content (normalized to Tailwind classes). */
   getHTML() {
-    return normalizeHTML(this.#engine.getHTML());
+    return normalizeHTML(this.#engine.getHTML(), this.#classMap);
   }
 
   /** Get raw (un-normalized) HTML from the editor. */
@@ -176,7 +179,7 @@ export class RichTextEditor {
 
   /** Set HTML content (will be normalized). */
   setHTML(html) {
-    const normalized = normalizeHTML(html);
+    const normalized = normalizeHTML(html, this.#classMap);
     this.#engine.setHTML(normalized);
   }
 

@@ -36,6 +36,6 @@ export const CLASS_MAP = {
  * Get Tailwind classes for a given tag name (case-insensitive).
  * Returns empty string for unknown tags.
  */
-export function getClassFor(tagName) {
-  return CLASS_MAP[tagName.toLowerCase()] || '';
+export function getClassFor(tagName, classMap = CLASS_MAP) {
+  return classMap[tagName.toLowerCase()] || '';
 }

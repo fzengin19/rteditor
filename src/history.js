@@ -34,20 +34,27 @@ export class History {
     let entry;
     const prev = this.#stack[this.#index];
 
-    if (prev && prev.fullHTML) {
-      // Calculate delta from previous state to save memory
-      const delta = this.#calculateDelta(prev.fullHTML, html);
-      entry = { delta, selection };
-    } else {
-      // Store full HTML for the first entry or periodically
+    // Periodically store full snapshots (every 20 entries) or if we don't have a prev
+    if (!prev || (this.#index % 20 === 0)) {
       entry = { fullHTML: html, selection };
+    } else {
+      const prevHTML = prev.fullHTML || this.#reconstructHTML(this.#index);
+      const delta = this.#calculateDelta(prevHTML, html);
+      entry = { delta, selection };
     }
 
     this.#stack.push(entry);
 
     // Enforce max size
     if (this.#stack.length > this.#maxSize) {
+      // CRITICAL FIX (§1.1): Before shifting, ensure the NEW head will be a fullHTML anchor.
+      // We reconstruct the state of #stack[1] (the new head) while #stack[0] (the old anchor) still exists.
+      const newHeadHTML = this.#reconstructHTML(1);
       this.#stack.shift();
+      this.#stack[0] = {
+        fullHTML: newHeadHTML,
+        selection: this.#stack[0].selection
+      };
     } else {
       this.#index++;
     }

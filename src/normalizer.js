@@ -27,32 +27,32 @@ const TAG_ALIASES = {
  * Normalize HTML string: ensure every element has correct Tailwind classes,
  * normalize deprecated tags, strip disallowed attributes.
  */
-export function normalizeHTML(html) {
+export function normalizeHTML(html, classMap = CLASS_MAP) {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
   const container = doc.body.firstChild;
 
   // Wrap bare text nodes in <p>
-  wrapBareTextNodes(container);
+  wrapBareTextNodes(container, classMap);
 
   // Process all elements
-  processNode(container);
+  processNode(container, classMap);
 
   return container.innerHTML;
 }
 
-function wrapBareTextNodes(container) {
+function wrapBareTextNodes(container, classMap) {
   const childNodes = Array.from(container.childNodes);
   for (const node of childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
       const p = container.ownerDocument.createElement('p');
-      p.className = getClassFor('p');
+      p.className = getClassFor('p', classMap);
       p.textContent = node.textContent;
       container.replaceChild(p, node);
     }
   }
 }
 
-function processNode(container) {
+function processNode(container, classMap) {
   // Use a recursive approach or a queue to ensure nested disallowed tags are handled
   // querySelectorAll('*') returns a static list, so we must be careful with mutations.
   let elements = Array.from(container.querySelectorAll('*'));
@@ -68,7 +68,7 @@ function processNode(container) {
       const newEl = el.ownerDocument.createElement(TAG_ALIASES[tag]);
       while (el.firstChild) newEl.appendChild(el.firstChild);
       el.parentNode.replaceChild(newEl, el);
-      applyClasses(newEl);
+      applyClasses(newEl, classMap);
       // Re-scan nested items
       elements = Array.from(container.querySelectorAll('*'));
       continue;
@@ -87,14 +87,14 @@ function processNode(container) {
     }
 
     // 3. For allowed tags, ensure correct classes and strip attributes
-    applyClasses(el);
+    applyClasses(el, classMap);
     stripAttributes(el, tag);
   }
 }
 
-function applyClasses(el) {
+function applyClasses(el, classMap) {
   const tag = el.tagName.toLowerCase();
-  const classes = getClassFor(tag);
+  const classes = getClassFor(tag, classMap);
   if (classes) {
     el.className = classes;
   }
@@ -113,7 +113,7 @@ function stripAttributes(el, tag) {
 /**
  * Sanitize pasted HTML: remove dangerous content, then normalize.
  */
-export function sanitizeHTML(html) {
+export function sanitizeHTML(html, classMap = CLASS_MAP) {
   // Strip script, style, iframe, object, embed tags entirely
   let clean = html.replace(/<(script|style|iframe|object|embed|form|input|textarea|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
   clean = clean.replace(/<(script|style|iframe|object|embed|form|input|textarea|button)[^>]*\/?>/gi, '');
@@ -125,5 +125,5 @@ export function sanitizeHTML(html) {
   clean = clean.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, '');
 
   // Now normalize
-  return normalizeHTML(clean);
+  return normalizeHTML(clean, classMap);
 }

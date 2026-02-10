@@ -56,10 +56,12 @@ export class Toolbar {
   constructor(editor, toolbarItems = DEFAULT_TOOLBAR) {
     this.#editor = editor;
     this.#container = document.createElement('div');
-    this.#container.className = 'flex flex-wrap items-center gap-0.5 p-1.5 border-b border-gray-200 bg-gray-50 rounded-t-lg';
+    this.#container.className = 'flex flex-wrap items-center gap-0.5 p-1.5 border-b border-gray-200 bg-gray-50 rounded-t-lg outline-none';
     this.#container.setAttribute('role', 'toolbar');
+    this.#container.setAttribute('aria-label', 'Rich Text Toolbar');
 
     this.#buildButtons(toolbarItems);
+    this.#setupKeyboardNav();
   }
 
   get element() {
@@ -92,7 +94,13 @@ export class Toolbar {
     btn.className = 'p-1.5 rounded hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900 flex items-center justify-center';
     btn.innerHTML = ICONS[def.icon] || def.label;
     btn.title = def.shortcut ? `${def.label} (${def.shortcut})` : def.label;
+    btn.setAttribute('aria-label', def.label);
     btn.setAttribute('data-command', name);
+    btn.tabIndex = -1; // Managed via arrow keys
+
+    if (def.type === 'inline' || def.type === 'block') {
+      btn.setAttribute('aria-pressed', 'false');
+    }
 
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault(); // Don't steal focus from editor
@@ -112,6 +120,12 @@ export class Toolbar {
     });
 
     this.#buttons[name] = { el: btn, def };
+
+    // Set first button in tab sequence if this is the first item
+    if (Object.keys(this.#buttons).length === 1) {
+      btn.tabIndex = 0;
+    }
+
     this.#container.appendChild(btn);
   }
 
@@ -124,6 +138,10 @@ export class Toolbar {
     btn.className = 'flex items-center gap-0.5 p-1.5 rounded hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900';
     btn.innerHTML = `${ICONS[def.icon]}${ICONS.chevronDown}`;
     btn.title = def.label;
+    btn.setAttribute('aria-label', `${def.label} options`);
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.tabIndex = -1;
 
     const dropdown = document.createElement('div');
     dropdown.className = 'absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] z-[100] hidden';
@@ -151,7 +169,8 @@ export class Toolbar {
     btn.addEventListener('mousedown', (e) => e.preventDefault());
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      dropdown.classList.toggle('hidden');
+      const isHidden = dropdown.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', (!isHidden).toString());
     });
 
     // Close dropdown on outside click
@@ -165,6 +184,12 @@ export class Toolbar {
     wrapper.appendChild(btn);
     wrapper.appendChild(dropdown);
     this.#buttons[name] = { el: btn, def, dropdownItems: headingButtons };
+    
+    // Set first button in tab sequence if this is the first item
+    if (Object.keys(this.#buttons).length === 1) {
+      btn.tabIndex = 0;
+    }
+
     this.#container.appendChild(wrapper);
   }
 
@@ -206,8 +231,34 @@ export class Toolbar {
           const isActive = blockTag === item.tag;
           item.el.classList.toggle('bg-gray-100', isActive);
           item.el.classList.toggle('text-blue-600', isActive);
+          item.el.setAttribute('aria-current', isActive ? 'true' : 'false');
         }
       }
+      
+      if (def.type === 'inline' || def.type === 'block') {
+        const isActive = el.classList.contains('text-blue-600');
+        el.setAttribute('aria-pressed', isActive.toString());
+      }
     }
+  }
+
+  #setupKeyboardNav() {
+    this.#container.addEventListener('keydown', (e) => {
+      const items = Array.from(this.#container.querySelectorAll('button:not([data-tag])'));
+      const index = items.indexOf(document.activeElement);
+      if (index === -1) return;
+
+      let nextIndex;
+      if (e.key === 'ArrowRight') nextIndex = (index + 1) % items.length;
+      else if (e.key === 'ArrowLeft') nextIndex = (index - 1 + items.length) % items.length;
+      else if (e.key === 'Home') nextIndex = 0;
+      else if (e.key === 'End') nextIndex = items.length - 1;
+      else return;
+
+      e.preventDefault();
+      items[index].tabIndex = -1;
+      items[nextIndex].tabIndex = 0;
+      items[nextIndex].focus();
+    });
   }
 }

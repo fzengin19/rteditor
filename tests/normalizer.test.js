@@ -59,10 +59,10 @@ describe('normalizeHTML', () => {
     expect(result).toContain(`class="${CLASS_MAP.li}"`);
   });
  
-  it('strips Zero-Width Space characters (\\u200B)', () => {
-    const input = '<p>Hello\\u200BWorld</p>'.replace('\\\\u200B', '\\u200B'); // literal ZWS
-    const result = normalizeHTML('<p>Hello\\u200BWorld</p>'.replace('\\\\u200B', '\\u200B'));
-    expect(result).not.toContain('\\u200B');
+  it('strips Zero-Width Space characters (\u200B)', () => {
+    const input = '<p>Hello\u200BWorld</p>';
+    const result = normalizeHTML(input);
+    expect(result).not.toContain('\u200B');
     expect(result).toContain('HelloWorld');
   });
 });

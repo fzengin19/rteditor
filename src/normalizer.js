@@ -141,12 +141,14 @@ function processNodes(container, classMap) {
   }
 
   // 5. Cleanup: Remove Zero-Width Spaces (\u200B) from all text nodes (ANALYSIS 1.4)
-  const walker = container.ownerDocument.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let textNode;
-  while (textNode = walker.nextNode()) {
-    textNode.textContent = textNode.textContent.replace(/\u200B/g, '');
-    // If text node became empty, it will be cleaned up by group flushing or normalization
-  }
+  const stripZWS = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      node.textContent = node.textContent.replace(/\u200B/g, '');
+    } else {
+      Array.from(node.childNodes).forEach(child => stripZWS(child));
+    }
+  };
+  stripZWS(container);
 }
 
 function applyClasses(el, classMap) {

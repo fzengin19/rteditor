@@ -52,7 +52,7 @@ describe('ImageResizer Integration', () => {
     Object.defineProperty(img, 'naturalHeight', { value: 100 });
     
     img.click();
-    const handle = container.querySelector('.cursor-nwse-resize');
+    const handle = container.querySelector('[data-rt-resizer-pos="bottom-right"]');
     
     // Start drag
     handle.dispatchEvent(new MouseEvent('mousedown', { 
@@ -69,6 +69,32 @@ describe('ImageResizer Integration', () => {
     expect(img.style.width).toBe('150px');
     
     // End drag
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+
+  it('increases image width when dragging left-side handle to the left', () => {
+    editor.setHTML('<p><img src="test.jpg" style="width: 100px"></p>');
+    const img = container.querySelector('img');
+    Object.defineProperty(img, 'clientWidth', { value: 100 });
+    
+    img.click();
+    const handle = container.querySelector('[data-rt-resizer-pos="bottom-left"]');
+    
+    // Start drag
+    handle.dispatchEvent(new MouseEvent('mousedown', { 
+      clientX: 100,
+      bubbles: true 
+    }));
+    
+    // Move 50px left (clientX 100 -> 50)
+    document.dispatchEvent(new MouseEvent('mousemove', { 
+      clientX: 50,
+      bubbles: true 
+    }));
+    
+    // Width should increase: 100 + (startX[100] - moveX[50]) = 150
+    expect(img.style.width).toBe('150px');
+    
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
 });

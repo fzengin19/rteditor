@@ -9,6 +9,7 @@ export class ImageResizer {
   #isResizing = false;
   #startWidth = 0;
   #startX = 0;
+  #activeHandle = null;
 
   constructor(img) {
     this.#img = img;
@@ -40,10 +41,11 @@ export class ImageResizer {
       else handle.className += ' cursor-nesw-resize';
       
       handle.setAttribute('data-rt-resizer-handle', 'true');
+      handle.setAttribute('data-rt-resizer-pos', pos);
       
       // Support both mouse and touch
-      handle.addEventListener('mousedown', (e) => this.#onStart(e));
-      handle.addEventListener('touchstart', (e) => this.#onStart(e), { passive: false });
+      handle.addEventListener('mousedown', (e) => this.#onStart(e, pos));
+      handle.addEventListener('touchstart', (e) => this.#onStart(e, pos), { passive: false });
       
       this.#overlay.appendChild(handle);
       this.#handles.push(handle);
@@ -85,19 +87,21 @@ export class ImageResizer {
     return e.clientX;
   }
 
-  #onStart(e) {
+  #onStart(e, pos) {
     // Only prevent default for touch to avoid scrolling, 
     // for mouse it might interfere with focus if not careful but generally okay here
     if (e.type === 'touchstart') e.preventDefault();
     e.stopPropagation();
 
     this.#isResizing = true;
+    this.#activeHandle = pos;
     this.#startX = this.#getClientX(e);
     this.#startWidth = this.#img.clientWidth;
 
     const onMove = (moveEvent) => this.#onMove(moveEvent);
     const onEnd = () => {
       this.#isResizing = false;
+      this.#activeHandle = null;
       
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onEnd);
@@ -121,7 +125,13 @@ export class ImageResizer {
     if (!this.#isResizing) return;
     if (e.type === 'touchmove') e.preventDefault(); // Prevent scroll while resizing
 
-    const delta = this.#getClientX(e) - this.#startX;
+    let delta = this.#getClientX(e) - this.#startX;
+    
+    // If dragging from the left side, moving left (negative delta) should increase width
+    if (this.#activeHandle?.includes('left')) {
+      delta = -delta;
+    }
+
     const newWidth = Math.max(50, this.#startWidth + delta);
     
     this.#img.style.width = `${newWidth}px`;

@@ -107,6 +107,11 @@ export class EditorEngine {
     return normalizeHTML(this.#root.innerHTML, this.#classMap);
   }
 
+  /** Get raw (un-normalized) HTML content. */
+  getRawHTML() {
+    return this.#root.innerHTML;
+  }
+
   /** Set HTML content (normalized). */
   setHTML(html) {
     this.#root.innerHTML = html || '';

@@ -196,7 +196,7 @@ export class RichTextEditor {
 
   /** Get raw (un-normalized) HTML from the editor. */
   getRawHTML() {
-    return this.#engine.getHTML();
+    return this.#engine.getRawHTML();
   }
 
   /** Set HTML content (normalized and sanitized). */

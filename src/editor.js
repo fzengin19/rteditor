@@ -224,6 +224,7 @@ export class RichTextEditor {
 
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {
+    document.removeEventListener('selectionchange', this._selectionHandler);
     document.removeEventListener('mousedown', this._resizerCleanup);
     this.#engine.contentEl.removeEventListener('click', this.#onClick);
     

@@ -150,8 +150,8 @@ export class EditorEngine {
     this.#handlePaste(e);
   };
 
-  #onInput = () => {
-    this.#handleInput();
+  #onInput = (e) => {
+    this.#handleInput(e);
     this.#normalizeContent();
   };
 
@@ -319,14 +319,30 @@ export class EditorEngine {
     range.collapse(false);
   }
 
-  #handleInput() {
-    // Debounce history snapshots for typed text
+  #handleInput(e) {
+    // 1. Live update for listeners (e.g., Toolbar state)
+    this.#emitChange();
+
+    // 2. Clear existing debounced snapshot timer
     clearTimeout(this.#debounceTimer);
+
+    // 3. Immediate snapshot on structure changes or boundary characters
+    // Boundary characters: space, period, question mark, exclamation, or Enter
+    const boundaryChars = [' ', '.', '!', '?', ',', ';'];
+    const isBoundary = e && e.data && boundaryChars.includes(e.data);
+    
+    // Also include 'delete' or 'paste' if we want them as separate undo points 
+    // (though paste is handled separately in #handlePaste)
+    
+    if (isBoundary) {
+      this.#history.push();
+      return;
+    }
+
+    // 4. Otherwise, debounce with a longer idle period (1.5s)
     this.#debounceTimer = setTimeout(() => {
       this.#history.push();
-    }, 500);
-
-    this.#emitChange();
+    }, 1500);
   }
 
   /** Focus the contenteditable element. */

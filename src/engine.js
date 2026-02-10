@@ -124,6 +124,7 @@ export class EditorEngine {
     this.#root.setAttribute('contenteditable', 'true');
     this.#root.setAttribute('role', 'textbox');
     this.#root.setAttribute('aria-multiline', 'true');
+    this.#root.setAttribute('aria-label', 'Rich Text Editor');
     this.#ensureDefaultBlock();
   }
 

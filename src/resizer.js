@@ -15,6 +15,15 @@ export class ImageResizer {
     this.#img = img;
     this.#aspectRatio = img.naturalWidth / img.naturalHeight || 1;
     this.#createOverlay();
+    this.#attachScrollListener();
+  }
+
+  #attachScrollListener() {
+    const root = this.#img.closest('[contenteditable]');
+    if (root) {
+      this._onScroll = () => this.#updateOverlayPosition();
+      root.addEventListener('scroll', this._onScroll);
+    }
   }
 
   #attachListeners() {
@@ -48,10 +57,21 @@ export class ImageResizer {
 
   #updateOverlayPosition() {
     const rect = this.#img.getBoundingClientRect();
-    const rootRect = this.#img.closest('[contenteditable]').getBoundingClientRect();
+    const root = this.#img.closest('[contenteditable]');
+    if (!root) return;
 
-    this.#overlay.style.top = `${rect.top - rootRect.top}px`;
-    this.#overlay.style.left = `${rect.left - rootRect.left}px`;
+    const rootRect = root.getBoundingClientRect();
+    
+    // Account for scroll position and border widths
+    // getBoundingClientRect is relative to viewport.
+    // style.top/left for an absolute element inside a relative parent is relative to the top-left of the content area (including scroll but excluding border).
+    
+    const style = window.getComputedStyle(root);
+    const borderTop = parseInt(style.borderTopWidth, 10) || 0;
+    const borderLeft = parseInt(style.borderLeftWidth, 10) || 0;
+
+    this.#overlay.style.top = `${rect.top - rootRect.top + root.scrollTop - borderTop}px`;
+    this.#overlay.style.left = `${rect.left - rootRect.left + root.scrollLeft - borderLeft}px`;
     this.#overlay.style.width = `${rect.width}px`;
     this.#overlay.style.height = `${rect.height}px`;
   }
@@ -87,6 +107,10 @@ export class ImageResizer {
   }
 
   destroy() {
+    const root = this.#img?.closest('[contenteditable]');
+    if (root && this._onScroll) {
+      root.removeEventListener('scroll', this._onScroll);
+    }
     if (this.#overlay && this.#overlay.parentNode) {
       this.#overlay.parentNode.removeChild(this.#overlay);
     }

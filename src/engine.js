@@ -102,12 +102,7 @@ export class EditorEngine {
 
   /** Get normalized HTML content. */
   getHTML() {
-    // Clone to avoid modifying the active DOM
-    const clone = this.#root.cloneNode(true);
-    // Remove resizer overlays if any leaked in
-    const overlays = clone.querySelectorAll('[data-rt-resizer]');
-    overlays.forEach(el => el.remove());
-    return clone.innerHTML;
+    return normalizeHTML(this.#root.innerHTML, this.#classMap);
   }
 
   /** Set HTML content (normalized). */

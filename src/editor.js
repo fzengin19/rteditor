@@ -65,10 +65,7 @@ export class RichTextEditor {
 
     // Create engine (manages contenteditable)
     this.#engine = new EditorEngine(contentEl, {
-      onChange: (html) => {
-        const normalized = normalizeHTML(html, this.#classMap);
-        this.#options.onChange(normalized);
-      },
+      onChange: (html) => this.#options.onChange(html),
       classMap: this.#classMap,
     });
 
@@ -190,7 +187,7 @@ export class RichTextEditor {
 
   /** Get the current HTML content (normalized to Tailwind classes). */
   getHTML() {
-    return normalizeHTML(this.#engine.getHTML(), this.#classMap);
+    return this.#engine.getHTML();
   }
 
   /** Get raw (un-normalized) HTML from the editor. */

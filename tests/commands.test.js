@@ -141,6 +141,20 @@ describe('command registry', () => {
       expect(ul.children[0].textContent).toBe('A');
       expect(ul.children[1].textContent).toBe('B');
     });
+
+    it('unwraps list items in the correct order (BUG-002)', () => {
+      root.innerHTML = '<ul><li>A</li><li>B</li><li>C</li></ul><p id="after">After</p>';
+      const list = root.querySelector('ul');
+      const range = document.createRange();
+      range.selectNodeContents(list);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('unorderedList');
+      const paragraphs = Array.from(root.querySelectorAll('p')).map(p => p.textContent.trim());
+      expect(paragraphs).toEqual(['A', 'B', 'C', 'After']);
+    });
   });
 
   describe('block: blockquote', () => {
@@ -168,6 +182,20 @@ describe('command registry', () => {
       expect(bq.children[1].tagName).toBe('P');
       expect(bq.children[0].textContent).toBe('A');
       expect(bq.children[1].textContent).toBe('B');
+    });
+
+    it('unwraps blockquote items in the correct order (BUG-003)', () => {
+      root.innerHTML = '<blockquote><p>1</p><p>2</p><p>3</p></blockquote><p id="after">After</p>';
+      const bq = root.querySelector('blockquote');
+      const range = document.createRange();
+      range.selectNodeContents(bq);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('blockquote');
+      const paragraphs = Array.from(root.querySelectorAll('p')).map(p => p.textContent.trim());
+      expect(paragraphs).toEqual(['1', '2', '3', 'After']);
     });
   });
 

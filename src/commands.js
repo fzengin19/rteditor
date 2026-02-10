@@ -144,18 +144,21 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
 
     if (isInTargetList) {
       // UNWRAP: Convert each selected LI to a P
-      // Note: We might be unwrapping part of a larger list.
+      // BUG-002: Capture the insertion point before the loop to avoid order reversal
+      const list = firstBlock.parentElement;
+      const insertRef = list ? list.nextSibling : null;
+
       leafBlocks.forEach(li => {
         if (li.tagName !== 'LI') return;
         const p = document.createElement('p');
         p.className = getClassFor('p', classMap);
         while (li.firstChild) p.appendChild(li.firstChild);
         
-        const list = li.parentElement;
-        if (list) {
-          list.parentNode.insertBefore(p, list.nextSibling); // Simplification: move after list
+        const currentList = li.parentElement;
+        if (currentList) {
+          currentList.parentNode.insertBefore(p, insertRef);
           li.remove();
-          if (list.children.length === 0) list.remove();
+          if (currentList.children.length === 0) currentList.remove();
         }
       });
     } else if (isInOtherList) {
@@ -223,18 +226,22 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
 
     if (isInBlockquote) {
       // UNWRAP: Convert each selected block inside a blockquote back to P
+      // BUG-003: Capture the insertion point before the loop to avoid order reversal
+      const bq = findParentTag(firstBlock, 'blockquote', root);
+      const insertRef = bq ? bq.nextSibling : null;
+
       leafBlocks.forEach(block => {
-        const bq = findParentTag(block, 'blockquote', root);
-        if (!bq) return;
+        const currentBq = findParentTag(block, 'blockquote', root);
+        if (!currentBq) return;
 
         // Convert block to P if it's not already
         const p = document.createElement('p');
         p.className = getClassFor('p', classMap);
         while (block.firstChild) p.appendChild(block.firstChild);
         
-        bq.parentNode.insertBefore(p, bq.nextSibling);
+        currentBq.parentNode.insertBefore(p, insertRef);
         block.remove();
-        if (bq.children.length === 0) bq.remove();
+        if (currentBq.children.length === 0) currentBq.remove();
       });
     } else {
       // WRAP: Move all selected blocks into a single blockquote

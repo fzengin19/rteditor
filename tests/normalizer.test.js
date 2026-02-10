@@ -59,11 +59,25 @@ describe('normalizeHTML', () => {
     expect(result).toContain(`class="${CLASS_MAP.li}"`);
   });
  
-  it('strips Zero-Width Space characters (\u200B)', () => {
-    const input = '<p>Hello\u200BWorld</p>';
-    const result = normalizeHTML(input);
-    expect(result).not.toContain('\u200B');
-    expect(result).toContain('HelloWorld');
+  describe('Zero-Width Space (\u200B) handling', () => {
+    it('strips ZWS when mixed with other text', () => {
+      const input = '<p>Hello\u200BWorld</p>';
+      const result = normalizeHTML(input);
+      expect(result).not.toContain('\u200B');
+    });
+
+    it('preserves ZWS when it is the sole content of an inline formatting tag', () => {
+      // This is BUG-007 fix: preserve placeholders
+      const input = '<strong>\u200B</strong>';
+      const result = normalizeHTML(input);
+      expect(result).toContain('\u200B');
+    });
+
+    it('strips ZWS when it is the sole content of a non-formatting tag', () => {
+      const input = '<p>\u200B</p>';
+      const result = normalizeHTML(input);
+      expect(result).not.toContain('\u200B');
+    });
   });
 });
 

@@ -16,6 +16,10 @@ const ALLOWED_TAGS = new Set([
   'a', 'img', 'br',
 ]);
 
+const INLINE_FORMAT_TAGS = new Set([
+  'strong', 'em', 'u', 's', 'code', 'a'
+]);
+
 // Attributes to keep per tag
 const ALLOWED_ATTRS = {
   a:   ['href', 'target', 'rel', 'title'],
@@ -140,10 +144,21 @@ function processNodes(container, classMap) {
     sanitizeAttributes(el, tag);
   }
 
-  // 5. Cleanup: Remove Zero-Width Spaces (\u200B) from all text nodes (ANALYSIS 1.4)
+  // 5. Cleanup: Remove Zero-Width Spaces (\u200B) from all text nodes (ANALYSIS 1.4 / BUG-007)
   const stripZWS = (node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      node.textContent = node.textContent.replace(/\u200B/g, '');
+      const text = node.textContent;
+      if (text.length > 1) {
+        // If there is other content, strip all ZWS to keep output clean
+        node.textContent = text.replace(/\u200B/g, '');
+      } else if (text === '\u200B') {
+        // If it's ONLY a ZWS, only strip if it's NOT inside an inline formatting tag
+        // (This preserves cursor placeholders for bold/italic on empty lines)
+        const parentTag = node.parentElement?.tagName.toLowerCase();
+        if (!INLINE_FORMAT_TAGS.has(parentTag)) {
+          node.textContent = '';
+        }
+      }
     } else {
       Array.from(node.childNodes).forEach(child => stripZWS(child));
     }

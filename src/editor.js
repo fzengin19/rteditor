@@ -16,6 +16,7 @@ export class RichTextEditor {
   #currentResizer = null;
   #justResized = false;
   #resetResizeGuardRaf = 0;
+  #destroyed = false;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -238,6 +239,9 @@ export class RichTextEditor {
 
   /** Destroy the editor and clean up listeners/DOM. */
   destroy() {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+
     if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
     document.removeEventListener('selectionchange', this._selectionHandler);
     document.removeEventListener('mousedown', this._resizerCleanup);

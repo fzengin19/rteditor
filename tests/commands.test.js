@@ -433,4 +433,88 @@ describe('command registry', () => {
       expect(updatedLink.href).not.toContain('javascript');
     });
   });
+
+  describe('list indentation', () => {
+    it('should not indent the first list item (no previous sibling)', () => {
+      root.innerHTML = `<ul><li class="${CLASS_MAP.li}">First item</li><li class="${CLASS_MAP.li}">Second item</li></ul>`;
+      const li = root.querySelector('li');
+      const textNode = li.firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('indentList');
+
+      // Structure should remain unchanged - first item can't be indented
+      const ul = root.querySelector('ul');
+      expect(ul.children.length).toBe(2);
+      expect(ul.children[0].tagName).toBe('LI');
+      expect(ul.children[1].tagName).toBe('LI');
+    });
+
+    it('should indent second item under first item', () => {
+      root.innerHTML = `<ul><li class="${CLASS_MAP.li}">First item</li><li class="${CLASS_MAP.li}">Second item</li></ul>`;
+      const lis = root.querySelectorAll('li');
+      const secondLi = lis[1];
+      const textNode = secondLi.firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('indentList');
+
+      // First LI should now contain a nested UL with second LI
+      const firstLi = root.querySelector('li');
+      const nestedUl = firstLi.querySelector('ul');
+      expect(nestedUl).not.toBeNull();
+      expect(nestedUl.querySelector('li').textContent).toBe('Second item');
+    });
+
+    it('should not create self-reference when indenting item without children', () => {
+      root.innerHTML = `<ul><li class="${CLASS_MAP.li}">First</li><li class="${CLASS_MAP.li}">Second</li></ul>`;
+      const lis = root.querySelectorAll('li');
+      const secondLi = lis[1];
+      const range = document.createRange();
+      range.selectNodeContents(secondLi);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('indentList');
+
+      // Check no circular reference
+      const html = root.innerHTML;
+      // The second LI should be INSIDE the first LI, not the other way around
+      const firstLi = root.querySelector('ul > li');
+      expect(firstLi.textContent).toContain('First');
+      const nestedUl = firstLi.querySelector(':scope > ul');
+      expect(nestedUl).not.toBeNull();
+      expect(nestedUl.querySelector('li').textContent).toBe('Second');
+    });
+
+    it('should do nothing when not inside a list', () => {
+      root.innerHTML = `<p class="${CLASS_MAP.p}">Just a paragraph</p>`;
+      const p = root.querySelector('p');
+      const textNode = p.firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('indentList');
+
+      // Should remain unchanged
+      expect(root.querySelector('p')).not.toBeNull();
+      expect(root.querySelector('ul')).toBeNull();
+      expect(root.querySelector('ol')).toBeNull();
+    });
+  });
 });

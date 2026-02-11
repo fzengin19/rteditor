@@ -453,41 +453,39 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     }
   });
 
-   // UX-002
-   commands.set('indentList', () => {
-     const sel = window.getSelection();
-     if (!sel || !sel.rangeCount) return;
-     const range = sel.getRangeAt(0);
-     const li = findParentTag(range.startContainer, 'li', root);
-     if (!li) return;
+    // UX-002
+    commands.set('indentList', () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const li = findParentTag(range.startContainer, 'li', root);
+      if (!li) return;
 
-     const parentList = li.parentElement;
-     if (!parentList || !['UL', 'OL'].includes(parentList.tagName)) return;
+      const parentList = li.parentElement;
+      if (!parentList || !['UL', 'OL'].includes(parentList.tagName)) return;
 
-     const allLis = Array.from(parentList.children);
-     const startIdx = allLis.indexOf(li);
-     let endIdx = startIdx;
-     for (let i = startIdx + 1; i < allLis.length; i++) {
-       if (range.intersectsNode(allLis[i])) endIdx = i;
-       else break;
-     }
+      const allLis = Array.from(parentList.children);
+      const startIdx = allLis.indexOf(li);
 
-     const nestedList = document.createElement(parentList.tagName.toLowerCase());
-     const siblingsToMove = allLis.slice(startIdx, endIdx + 1);
-     siblingsToMove.forEach(sib => {
-       if (!li.children.length) {
-         nestedList.appendChild(sib);
-       } else if (sib !== li) {
-         nestedList.appendChild(sib);
-       }
-     });
+      // Can't indent the first item - no previous sibling to nest under
+      if (startIdx === 0) return;
 
-     if (li === siblingsToMove[0]) {
-       li.appendChild(nestedList);
-     } else {
-       siblingsToMove[0].appendChild(nestedList);
-     }
-   });
+      let endIdx = startIdx;
+      for (let i = startIdx + 1; i < allLis.length; i++) {
+        if (range.intersectsNode(allLis[i])) endIdx = i;
+        else break;
+      }
+
+      const prevLi = allLis[startIdx - 1];
+      let nestedList = prevLi.querySelector(':scope > ul, :scope > ol');
+      if (!nestedList) {
+        nestedList = document.createElement(parentList.tagName.toLowerCase());
+        prevLi.appendChild(nestedList);
+      }
+
+      const siblingsToMove = allLis.slice(startIdx, endIdx + 1);
+      siblingsToMove.forEach(sib => nestedList.appendChild(sib));
+    });
 
    commands.set('outdentList', () => {
      const sel = window.getSelection();

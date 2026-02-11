@@ -188,4 +188,21 @@ describe('EditorEngine', () => {
     expect(root.querySelector('p')).not.toBeNull();
     vi.useRealTimers();
   });
+
+  it('debounces change emission during rapid input events (PERF-002)', () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const engine = new EditorEngine(root, { onChange });
+
+    root.innerHTML = '<p>abc</p>';
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledTimes(0);
+
+    vi.advanceTimersByTime(130);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
 });

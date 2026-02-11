@@ -12,6 +12,7 @@ export class EditorEngine {
   #classMap;
   #debounceTimer = null;
   #normalizeTimer = null;
+  #emitChangeTimer = null;
   #listeners = {};
 
   constructor(contentEl, { onChange = () => {}, classMap = CLASS_MAP } = {}) {
@@ -129,7 +130,7 @@ export class EditorEngine {
       this.#history = new History(this.#root);
     }
     this.#history.push();
-    this.#emitChange();
+    this.#emitChange({ debounced: true });
   }
 
   /** Get plain text content. */
@@ -312,7 +313,7 @@ export class EditorEngine {
 
   #handleInput(e) {
     // 1. Live update for listeners (e.g., Toolbar state)
-    this.#emitChange();
+    this.#emitChange({ debounced: true });
 
     // 2. Clear existing debounced snapshot timer
     clearTimeout(this.#debounceTimer);
@@ -497,7 +498,20 @@ export class EditorEngine {
     return true;
   }
 
-  #emitChange() {
+  #emitChange({ debounced = false } = {}) {
+    if (debounced) {
+      clearTimeout(this.#emitChangeTimer);
+      this.#emitChangeTimer = setTimeout(() => {
+        this.#emitChangeNow();
+      }, 120);
+      return;
+    }
+
+    this.#emitChangeNow();
+  }
+
+  #emitChangeNow() {
+    this.#emitChangeTimer = null;
     const html = this.getHTML();
     this.#onChange(html);
     this.#emit('change', html);
@@ -506,6 +520,7 @@ export class EditorEngine {
   destroy() {
     clearTimeout(this.#debounceTimer);
     clearTimeout(this.#normalizeTimer);
+    clearTimeout(this.#emitChangeTimer);
     
     // Remove individual event listeners
     this.#root.removeEventListener('keydown', this.#onKeydown);

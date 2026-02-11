@@ -51,12 +51,15 @@ describe('RichTextEditor Integration', () => {
   });
 
   it('triggers onChange callback on content changes', () => {
+    vi.useFakeTimers();
     const onChange = vi.fn();
     const editor = new RichTextEditor(container, { onChange });
     
     editor.setHTML('<p>New Content</p>');
+    vi.advanceTimersByTime(130);
     expect(onChange).toHaveBeenCalled();
     editor.destroy();
+    vi.useRealTimers();
   });
 
   it('gets plain text', () => {
@@ -100,6 +103,7 @@ describe('RichTextEditor Integration', () => {
   });
 
   it('uses rAF-based resizer guard instead of fixed timeout (BUG-015)', () => {
+    vi.useFakeTimers();
     const rafQueue = [];
     const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       rafQueue.push(cb);
@@ -116,6 +120,8 @@ describe('RichTextEditor Integration', () => {
 
     editor.setHTML('<p><img src="https://example.com/x.png" alt="x"></p>');
     img = container.querySelector('img');
+
+    vi.advanceTimersByTime(130);
 
     img.click();
     expect(container.querySelector('[data-rt-resizer="true"]')).toBeNull();
@@ -136,5 +142,6 @@ describe('RichTextEditor Integration', () => {
     editor.destroy();
     cancelSpy.mockRestore();
     rafSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

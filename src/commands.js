@@ -433,6 +433,71 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     }
   });
 
+   // UX-002
+   commands.set('indentList', () => {
+     const sel = window.getSelection();
+     if (!sel || !sel.rangeCount) return;
+     const range = sel.getRangeAt(0);
+     const li = findParentTag(range.startContainer, 'li', root);
+     if (!li) return;
+
+     const parentList = li.parentElement;
+     if (!parentList || !['UL', 'OL'].includes(parentList.tagName)) return;
+
+     const allLis = Array.from(parentList.children);
+     const startIdx = allLis.indexOf(li);
+     let endIdx = startIdx;
+     for (let i = startIdx + 1; i < allLis.length; i++) {
+       if (range.intersectsNode(allLis[i])) endIdx = i;
+       else break;
+     }
+
+     const nestedList = document.createElement(parentList.tagName.toLowerCase());
+     const siblingsToMove = allLis.slice(startIdx, endIdx + 1);
+     siblingsToMove.forEach(sib => {
+       if (!li.children.length) {
+         nestedList.appendChild(sib);
+       } else if (sib !== li) {
+         nestedList.appendChild(sib);
+       }
+     });
+
+     if (li === siblingsToMove[0]) {
+       li.appendChild(nestedList);
+     } else {
+       siblingsToMove[0].appendChild(nestedList);
+     }
+   });
+
+   commands.set('outdentList', () => {
+     const sel = window.getSelection();
+     if (!sel || !sel.rangeCount) return;
+     const range = sel.getRangeAt(0);
+     const li = findParentTag(range.startContainer, 'li', root);
+     if (!li) return;
+
+     const parentList = li.parentElement;
+     if (!parentList || !['UL', 'OL'].includes(parentList.tagName)) return;
+
+     const grandparentList = parentList.parentElement;
+     if (!grandparentList || !['UL', 'OL'].includes(grandparentList.tagName)) return;
+
+     const allLis = Array.from(parentList.children);
+     const startIdx = allLis.indexOf(li);
+     let endIdx = startIdx;
+     for (let i = startIdx + 1; i < allLis.length; i++) {
+       if (range.intersectsNode(allLis[i])) endIdx = i;
+       else break;
+     }
+
+     const siblingsToMove = allLis.slice(startIdx, endIdx + 1);
+     siblingsToMove.forEach(sib => {
+       grandparentList.insertBefore(sib, parentList.nextSibling);
+     });
+
+     if (parentList.children.length === 0) parentList.remove();
+   });
+
   return {
     exec(name, ...args) {
       const cmd = commands.get(name);

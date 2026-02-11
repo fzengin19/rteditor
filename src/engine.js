@@ -222,6 +222,20 @@ export class EditorEngine {
       return;
     }
 
+    // UX-002: Outdent list item (Shift+Tab)
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      this.exec('outdentList');
+      return;
+    }
+
+    // UX-002: Indent list item (Tab)
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      this.exec('indentList');
+      return;
+    }
+
     // Enter key: create new paragraph (not div)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

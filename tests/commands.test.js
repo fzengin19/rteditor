@@ -296,4 +296,37 @@ describe('command registry', () => {
       expect(code.textContent).toBe('snippet');
     });
   });
+
+  describe('command: image', () => {
+    it('rejects unsafe image URLs (BUG-014)', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('image', 'javascript:alert(1)', 'x');
+
+      expect(root.querySelector('img')).toBeNull();
+    });
+
+    it('accepts safe image URLs (BUG-014)', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('image', 'https://example.com/image.png', 'ok');
+
+      const img = root.querySelector('img');
+      expect(img).not.toBeNull();
+      expect(img.src).toBe('https://example.com/image.png');
+      expect(img.alt).toBe('ok');
+    });
+  });
 });

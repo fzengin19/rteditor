@@ -10,6 +10,29 @@ import { getClosestBlock, findParentTag, saveSelection, restoreSelection, BLOCK_
 export function createCommandRegistry(root, classMap = CLASS_MAP) {
   const commands = new Map();
 
+  function isSafeImageSrc(src) {
+    if (typeof src !== 'string') return false;
+    const value = src.trim();
+    if (!value) return false;
+
+    const lower = value.toLowerCase();
+    if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('file:')) {
+      return false;
+    }
+
+    if (lower.startsWith('data:')) {
+      return /^data:image\//i.test(value);
+    }
+
+    try {
+      const parsed = new URL(value, window.location.href);
+      const protocol = parsed.protocol.toLowerCase();
+      return protocol === 'http:' || protocol === 'https:' || protocol === 'blob:';
+    } catch {
+      return !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value);
+    }
+  }
+
   function isRangeFullyFormatted(range, tagName) {
     if (range.collapsed) {
       return !!findParentTag(range.startContainer, tagName, root);
@@ -365,7 +388,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
   // --- IMAGE ---
 
   commands.set('image', (src, alt = '') => {
-    if (!src) return;
+    if (!isSafeImageSrc(src)) return;
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);

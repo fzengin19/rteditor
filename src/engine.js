@@ -265,8 +265,14 @@ export class EditorEngine {
       if (sel && sel.rangeCount) {
         const range = sel.getRangeAt(0);
         range.deleteContents();
+        const lastChild = fragment.lastChild;
         range.insertNode(fragment);
-        range.collapse(false);
+        if (lastChild) {
+          range.setStartAfter(lastChild);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
       }
       this.#history.push();
       this.#emitChange();
@@ -283,8 +289,14 @@ export class EditorEngine {
     temp.innerHTML = html;
     const fragment = document.createDocumentFragment();
     while (temp.firstChild) fragment.appendChild(temp.firstChild);
+    const lastChild = fragment.lastChild;
     range.insertNode(fragment);
-    range.collapse(false);
+    if (lastChild) {
+      range.setStartAfter(lastChild);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
   }
 
   #handleInput(e) {

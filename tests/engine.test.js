@@ -118,4 +118,58 @@ describe('EditorEngine', () => {
     engine.on('change', () => {});
     expect(() => engine.off('change', () => {})).not.toThrow();
   });
+
+  it('plain text paste positions cursor after pasted content (BUG-007)', () => {
+    const engine = new EditorEngine(root);
+    root.innerHTML = `<p class="${CLASS_MAP.p}">existing</p>`;
+    const p = root.querySelector('p');
+    const textNode = p.firstChild;
+
+    const range = document.createRange();
+    range.setStart(textNode, 8);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: { getData: (type) => (type === 'text/plain' ? 'pasted text' : '') }
+    });
+
+    root.dispatchEvent(event);
+
+    const curSel = window.getSelection();
+    expect(curSel.rangeCount).toBe(1);
+    const curRange = curSel.getRangeAt(0);
+    expect(curRange.collapsed).toBe(true);
+
+    expect(root.textContent).toContain('pasted text');
+  });
+
+  it('HTML paste positions cursor after pasted content (BUG-007)', () => {
+    const engine = new EditorEngine(root);
+    root.innerHTML = `<p class="${CLASS_MAP.p}">before</p>`;
+    const p = root.querySelector('p');
+    const textNode = p.firstChild;
+
+    const range = document.createRange();
+    range.setStart(textNode, 6);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: { getData: (type) => (type === 'text/html' ? '<p>inserted</p>' : 'inserted') }
+    });
+
+    root.dispatchEvent(event);
+
+    const curSel = window.getSelection();
+    expect(curSel.rangeCount).toBe(1);
+    const curRange = curSel.getRangeAt(0);
+    expect(curRange.collapsed).toBe(true);
+  });
 });

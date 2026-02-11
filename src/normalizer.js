@@ -1,4 +1,6 @@
 import { CLASS_MAP, getClassFor } from './class-map.js';
+import { BLOCK_TAGS as BLOCK_TAGS_ARRAY } from './selection.js';
+const BLOCK_TAGS = new Set(BLOCK_TAGS_ARRAY);
 
 // Tags we strictly block (dangerous or unwanted)
 const BLOCKED_TAGS = new Set([
@@ -30,9 +32,6 @@ const ALLOWED_ATTRS = {
 // We allow data: for images (common for pasted content) but block it for links (XSS risk).
 const BLOCKED_PROTOCOLS = /^(javascript|vbscript|file):/i;
 const BLOCKED_LINK_PROTOCOLS = /^(javascript|data|vbscript|file):/i;
-
-// Tags that count as blocks (don't need wrapping at root)
-const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'pre']);
 
 // Tag normalization: old → new (aliasing)
 const TAG_ALIASES = {

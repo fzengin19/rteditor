@@ -58,6 +58,18 @@ describe('normalizeHTML', () => {
     expect(result).toContain(`class="${CLASS_MAP.ul}"`);
     expect(result).toContain(`class="${CLASS_MAP.li}"`);
   });
+
+  it('keeps root-level pre blocks without wrapping into p (BUG-012)', () => {
+    const input = '<pre>code</pre>';
+    const result = normalizeHTML(input);
+    expect(result).toBe(`<pre class="${CLASS_MAP.pre}">code</pre>`);
+  });
+
+  it('keeps root-level li blocks without wrapping into p (BUG-012)', () => {
+    const input = '<li>Item</li>';
+    const result = normalizeHTML(input);
+    expect(result).toBe(`<li class="${CLASS_MAP.li}">Item</li>`);
+  });
  
   describe('Zero-Width Space (\u200B) handling', () => {
     it('strips ZWS when mixed with other text', () => {

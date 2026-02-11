@@ -32,7 +32,7 @@ const BLOCKED_PROTOCOLS = /^(javascript|vbscript|file):/i;
 const BLOCKED_LINK_PROTOCOLS = /^(javascript|data|vbscript|file):/i;
 
 // Tags that count as blocks (don't need wrapping at root)
-const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote']);
+const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'pre']);
 
 // Tag normalization: old → new (aliasing)
 const TAG_ALIASES = {

@@ -6,17 +6,17 @@ export class ImageResizer {
   #img = null;
   #overlay = null;
   #handles = [];
+  #root = null;
   #isResizing = false;
   #startWidth = 0;
   #startX = 0;
   #activeHandle = null;
+  #onRootScroll = null;
+  #onWindowResize = null;
 
   constructor(img) {
     this.#img = img;
     this.#createOverlay();
-    
-    // Periodically update position if the editor has layout shifts,
-    // though usually handled by resize/scroll listeners if we added them.
   }
 
   #createOverlay() {
@@ -62,8 +62,14 @@ export class ImageResizer {
     // Insert overlay into the editor root (it needs to be relative)
     const root = this.#img.closest('[contenteditable]');
     if (root) {
-      root.style.position = 'relative'; // Ensure root is relative
+      this.#root = root;
+      root.style.position = 'relative';
       root.appendChild(this.#overlay);
+
+      this.#onRootScroll = () => this.#updateOverlayPosition();
+      this.#onWindowResize = () => this.#updateOverlayPosition();
+      root.addEventListener('scroll', this.#onRootScroll);
+      window.addEventListener('resize', this.#onWindowResize);
     }
   }
 
@@ -185,6 +191,12 @@ export class ImageResizer {
   }
 
   destroy() {
+    if (this.#root && this.#onRootScroll) {
+      this.#root.removeEventListener('scroll', this.#onRootScroll);
+    }
+    if (this.#onWindowResize) {
+      window.removeEventListener('resize', this.#onWindowResize);
+    }
     if (this.#overlay && this.#overlay.parentNode) {
       this.#overlay.parentNode.removeChild(this.#overlay);
     }

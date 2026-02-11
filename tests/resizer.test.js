@@ -126,4 +126,29 @@ describe('ImageResizer Integration', () => {
     
     expect(img.style.width).toBe('100px');
   });
+
+  it('updates overlay position on editor scroll (BUG-011)', () => {
+    editor.setHTML('<p><img src="test.jpg" style="width: 100px"></p>');
+    const img = container.querySelector('img');
+    const editorRoot = container.querySelector('[contenteditable]');
+
+    let top = 20;
+    let left = 10;
+    Object.defineProperty(img, 'offsetTop', { get: () => top, configurable: true });
+    Object.defineProperty(img, 'offsetLeft', { get: () => left, configurable: true });
+    Object.defineProperty(img, 'offsetWidth', { get: () => 100, configurable: true });
+    Object.defineProperty(img, 'offsetHeight', { get: () => 40, configurable: true });
+
+    img.click();
+    const overlay = container.querySelector('[data-rt-resizer="true"]');
+    expect(overlay.style.top).toBe('20px');
+    expect(overlay.style.left).toBe('10px');
+
+    top = 55;
+    left = 35;
+    editorRoot.dispatchEvent(new Event('scroll'));
+
+    expect(overlay.style.top).toBe('55px');
+    expect(overlay.style.left).toBe('35px');
+  });
 });

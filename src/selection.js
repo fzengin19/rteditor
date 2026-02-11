@@ -98,9 +98,17 @@ export function restoreSelection(root, saved) {
 
   const sel = window.getSelection();
   const range = document.createRange();
+
+  const getMaxOffset = (node) => {
+    if (!node) return 0;
+    if (node.nodeType === Node.TEXT_NODE) return node.length;
+    if (node.childNodes) return node.childNodes.length;
+    return 0;
+  };
+
   try {
-    range.setStart(startNode, Math.min(saved.startOffset, startNode.length || startNode.childNodes.length));
-    range.setEnd(endNode, Math.min(saved.endOffset, endNode.length || endNode.childNodes.length));
+    range.setStart(startNode, Math.min(saved.startOffset, getMaxOffset(startNode)));
+    range.setEnd(endNode, Math.min(saved.endOffset, getMaxOffset(endNode)));
     sel.removeAllRanges();
     sel.addRange(range);
   } catch (e) {

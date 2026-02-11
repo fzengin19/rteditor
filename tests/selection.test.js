@@ -4,6 +4,7 @@ import {
   findParentTag,
   getNodePath,
   resolveNodePath,
+  restoreSelection,
   BLOCK_TAGS,
 } from '../src/selection.js';
 
@@ -62,6 +63,30 @@ describe('selection utilities', () => {
       const path = getNodePath(root, boldText);
       const resolved = resolveNodePath(root, path);
       expect(resolved).toBe(boldText);
+    });
+  });
+
+  describe('restoreSelection', () => {
+    it('clamps offsets safely for empty text nodes (BUG-016)', () => {
+      root.innerHTML = '<p></p>';
+      const p = root.querySelector('p');
+      const emptyText = document.createTextNode('');
+      p.appendChild(emptyText);
+
+      const path = getNodePath(root, emptyText);
+      const saved = {
+        startPath: path,
+        startOffset: 5,
+        endPath: path,
+        endOffset: 5,
+      };
+
+      expect(() => restoreSelection(root, saved)).not.toThrow();
+
+      const sel = window.getSelection();
+      expect(sel.anchorNode).toBe(emptyText);
+      expect(sel.anchorOffset).toBe(0);
+      expect(sel.focusOffset).toBe(0);
     });
   });
 });

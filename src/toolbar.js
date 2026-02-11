@@ -206,6 +206,12 @@ export class Toolbar {
     dropdown.setAttribute('role', 'listbox');
 
     const headingButtons = [];
+    const closeDropdown = (restoreFocus = false) => {
+      dropdown.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) btn.focus();
+    };
+
     for (const opt of HEADING_OPTIONS) {
       const item = document.createElement('button');
       item.type = 'button';
@@ -220,7 +226,7 @@ export class Toolbar {
       item.addEventListener('click', (e) => {
         e.preventDefault();
         this.#editor.exec(opt.command);
-        dropdown.classList.add('hidden');
+        closeDropdown();
       });
 
       dropdown.appendChild(item);
@@ -234,10 +240,17 @@ export class Toolbar {
       btn.setAttribute('aria-expanded', (!isHidden).toString());
     });
 
+    wrapper.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (dropdown.classList.contains('hidden')) return;
+      e.preventDefault();
+      closeDropdown(true);
+    });
+
     // Close dropdown on outside click (ANALYSIS 2.1 / BUG-002)
     const closeOnOutside = (e) => {
       if (!wrapper.contains(e.target)) {
-        dropdown.classList.add('hidden');
+        closeDropdown();
       }
     };
     document.addEventListener('click', closeOnOutside);

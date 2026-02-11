@@ -91,6 +91,24 @@ describe('Toolbar', () => {
     expect(menu.classList.contains('hidden')).toBe(true);
   });
 
+  it('closes heading dropdown on Escape and returns focus to trigger (BUG-010)', () => {
+    document.body.appendChild(toolbar.element);
+
+    const dropdownWrapper = toolbar.element.querySelector('.relative');
+    const toggleBtn = dropdownWrapper.querySelector('button');
+    const menu = dropdownWrapper.querySelector('[role="listbox"]');
+
+    toggleBtn.click();
+    expect(menu.classList.contains('hidden')).toBe(false);
+
+    toggleBtn.focus();
+    toggleBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(menu.classList.contains('hidden')).toBe(true);
+    expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(toggleBtn);
+  });
+
   it('sets correct ARIA roles for heading dropdown items', () => {
     const dropdownWrapper = toolbar.element.querySelector('.relative');
     const menu = dropdownWrapper.querySelector('[role="listbox"]');

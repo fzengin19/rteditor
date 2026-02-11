@@ -580,6 +580,7 @@ export class EditorEngine {
     this.#root.removeAttribute('contenteditable');
     this.#root.removeAttribute('role');
     this.#root.removeAttribute('aria-multiline');
+    this.#root.removeAttribute('aria-label');
     this.#listeners = {}; // Clear internal emitter listeners
 
     if (!document.querySelector('[contenteditable]')) {

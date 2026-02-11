@@ -190,6 +190,7 @@ export class EditorEngine {
         case 'b': e.preventDefault(); this.exec('bold'); return;
         case 'i': e.preventDefault(); this.exec('italic'); return;
         case 'u': e.preventDefault(); this.exec('underline'); return;
+        case 'y': e.preventDefault(); this.exec('redo'); return; // Windows convention
         case 'z': e.preventDefault(); this.exec('undo'); return;
       }
     }

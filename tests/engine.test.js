@@ -119,6 +119,19 @@ describe('EditorEngine', () => {
     expect(() => engine.off('change', () => {})).not.toThrow();
   });
 
+  it('Ctrl+Y triggers redo (UX-003)', () => {
+    const engine = new EditorEngine(root);
+    root.innerHTML = `<p class="${CLASS_MAP.p}">initial</p>`;
+    engine.exec('bold');
+    engine.exec('undo');
+
+    const htmlBeforeRedo = root.innerHTML;
+    const event = new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true });
+    root.dispatchEvent(event);
+
+    expect(root.innerHTML).not.toBe(htmlBeforeRedo);
+  });
+
   it('plain text paste positions cursor after pasted content (BUG-007)', () => {
     const engine = new EditorEngine(root);
     root.innerHTML = `<p class="${CLASS_MAP.p}">existing</p>`;

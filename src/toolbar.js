@@ -302,13 +302,21 @@ export class Toolbar {
         el.setAttribute('aria-pressed', isActive.toString());
       }
 
-      // Handle dropdown item highlighting
       if (dropdownItems) {
+        let activeTag = null;
         for (const item of dropdownItems) {
           const isActive = blockTag === item.tag;
           item.el.classList.toggle('bg-gray-100', isActive);
           item.el.classList.toggle('text-blue-600', isActive);
           item.el.setAttribute('aria-selected', isActive.toString());
+          if (isActive) activeTag = item.tag;
+        }
+        // Update heading button to show current level (UX-004)
+        const levelLabel = activeTag === 'p' ? 'P' : activeTag?.toUpperCase();
+        if (levelLabel) {
+          el.innerHTML = `<span class="font-bold text-sm">${levelLabel}</span>${ICONS.chevronDown}`;
+        } else {
+          el.innerHTML = `${ICONS.heading}${ICONS.chevronDown}`;
         }
       }
       

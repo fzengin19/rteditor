@@ -11,6 +11,7 @@ export class EditorEngine {
   #onChange;
   #classMap;
   #debounceTimer = null;
+  #normalizeTimer = null;
   #listeners = {};
 
   constructor(contentEl, { onChange = () => {}, classMap = CLASS_MAP } = {}) {
@@ -171,8 +172,15 @@ export class EditorEngine {
 
   #onInput = (e) => {
     this.#handleInput(e);
-    this.#normalizeContent();
+    this.#scheduleNormalize();
   };
+
+  #scheduleNormalize() {
+    clearTimeout(this.#normalizeTimer);
+    this.#normalizeTimer = setTimeout(() => {
+      this.#normalizeContent();
+    }, 250);
+  }
 
   #handleKeydown(e) {
     // Keyboard shortcuts
@@ -497,6 +505,7 @@ export class EditorEngine {
 
   destroy() {
     clearTimeout(this.#debounceTimer);
+    clearTimeout(this.#normalizeTimer);
     
     // Remove individual event listeners
     this.#root.removeEventListener('keydown', this.#onKeydown);

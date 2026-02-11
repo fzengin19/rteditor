@@ -172,4 +172,20 @@ describe('EditorEngine', () => {
     const curRange = curSel.getRangeAt(0);
     expect(curRange.collapsed).toBe(true);
   });
+
+  it('debounces normalization instead of normalizing every input event (PERF-001)', () => {
+    vi.useFakeTimers();
+    const engine = new EditorEngine(root);
+
+    root.innerHTML = '<div>Unnormalized</div>';
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(root.querySelector('div')).not.toBeNull();
+
+    vi.advanceTimersByTime(260);
+
+    expect(root.querySelector('div')).toBeNull();
+    expect(root.querySelector('p')).not.toBeNull();
+    vi.useRealTimers();
+  });
 });

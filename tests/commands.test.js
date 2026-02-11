@@ -220,5 +220,60 @@ describe('command registry', () => {
       expect(root.querySelector('strong')).toBeNull();
       expect(root.querySelector('em')).toBeNull();
     });
+
+    it('preserves links when clearing formatting (BUG-005)', () => {
+      root.innerHTML = `<p><strong>bold</strong> <a href="https://example.com">link text</a> normal</p>`;
+      const p = root.querySelector('p');
+
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('clearFormatting');
+
+      expect(root.querySelector('strong')).toBeNull();
+      const link = root.querySelector('a');
+      expect(link).not.toBeNull();
+      expect(link.href).toBe('https://example.com/');
+      expect(link.textContent).toBe('link text');
+    });
+
+    it('preserves images when clearing formatting (BUG-005)', () => {
+      root.innerHTML = `<p><em>text</em><img src="test.png" alt="img"></p>`;
+      const p = root.querySelector('p');
+
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('clearFormatting');
+
+      expect(root.querySelector('em')).toBeNull();
+      const img = root.querySelector('img');
+      expect(img).not.toBeNull();
+      expect(img.alt).toBe('img');
+    });
+
+    it('preserves code elements when clearing formatting (BUG-005)', () => {
+      root.innerHTML = `<p><strong>bold</strong> <code>snippet</code></p>`;
+      const p = root.querySelector('p');
+
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('clearFormatting');
+
+      expect(root.querySelector('strong')).toBeNull();
+      const code = root.querySelector('code');
+      expect(code).not.toBeNull();
+      expect(code.textContent).toBe('snippet');
+    });
   });
 });

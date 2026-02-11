@@ -1,503 +1,931 @@
-# RTEditor - Kapsamli Analiz Raporu
+# RTEditor - Kapsamli Kod Analizi ve Bug Raporu
 
-> **Amaç:** Cilalama, bugfix ve stability improvement  
-> **Kapsam:** Mevcut toolbar özelliklerine dokunulmadan, var olan kodun iyileştirilmesi  
-> **Tarih:** 10 Şubat 2026
+> **Tarih**: 10 Subat 2026  
+> **Versiyon**: 0.1.0  
+> **Analiz Kapsamı**: Tüm kaynak dosyaları (11 modül, ~2200 satır), 15 test dosyası (92 test)  
+> **Tüm testler geçiyor**: ✅ 92/92
 
 ---
 
 ## İçindekiler
 
-1. [Kritik Bug'lar (Hemen Düzeltilmeli)](#1-kritik-buglar)
-2. [Memory Leak'ler](#2-memory-leakler)
-3. [Veri Bütünlüğü Sorunları](#3-veri-bütünlüğü-sorunları)
-4. [Stability İyileştirmeleri](#4-stability-iyileştirmeleri)
-5. [Cilalama / Polish](#5-cilalama--polish)
-6. [Test Altyapısı](#6-test-altyapısı)
-7. [Dev Ortamı / DX](#7-dev-ortamı--dx)
-8. [Öncelik Sıralaması](#8-öncelik-sıralaması)
+1. [Proje Genel Bakış](#1-proje-genel-bakış)
+2. [Kritik Buglar (Yüksek Öncelik)](#2-kritik-buglar-yüksek-öncelik)
+3. [Orta Seviye Buglar](#3-orta-seviye-buglar)
+4. [Düşük Seviye Buglar / Edge Case'ler](#4-düşük-seviye-buglar--edge-caseler)
+5. [Performans Sorunları](#5-performans-sorunları)
+6. [UX İyileştirmeleri](#6-ux-iyileştirmeleri)
+7. [Stabilite İyileştirmeleri](#7-stabilite-iyileştirmeleri)
+8. [Güvenlik Değerlendirmesi](#8-güvenlik-değerlendirmesi)
+9. [Kod Kalitesi ve Mimari](#9-kod-kalitesi-ve-mimari)
+10. [Test Kapsamı Boşlukları](#10-test-kapsamı-boşlukları)
+11. [Özet ve Önceliklendirme](#11-özet-ve-önceliklendirme)
 
 ---
 
-## 1. Kritik Bug'lar
+## 1. Proje Genel Bakış
 
-### 1.1 ❌ `editor.js` — Duplicate `focus()` Metodu
+RTEditor, Tailwind CSS v4 sınıfları üreten, bağımlılık gerektirmeyen (zero-dependency) bir WYSIWYG zengin metin editörüdür. Mimari olarak temiz bir modüler yapıya sahiptir:
 
-**Dosya:** `src/editor.js`  
-**Sorun:** İki ayrı `focus()` metodu tanımlanmış. İkincisi birincisini sessizce override ediyor.
+| Modül | Satır | Sorumluluk |
+|-------|-------|------------|
+| `editor.js` | 245 | Ana RichTextEditor sınıfı, UI orchestration |
+| `engine.js` | 484 | ContentEditable yönetimi, event handling |
+| `commands.js` | 426 | Inline/block/list/link/image formatting komutları |
+| `selection.js` | 120 | Selection serialization, DOM traversal |
+| `history.js` | 145 | Delta-compressed undo/redo |
+| `toolbar.js` | 347 | Toolbar UI, keyboard navigation, dropdown |
+| `normalizer.js` | 230 | HTML sanitization, tag normalization |
+| `resizer.js` | 193 | Image resize (mouse/touch/keyboard) |
+| `class-map.js` | ~40 | Tailwind CSS class mappings |
+| `icons.js` | ~80 | SVG icon definitions |
+| `index.js` | ~15 | Public API exports |
 
-```js
-// İlk tanım (~satır 215): 
-focus() { this.#engine.contentEl.focus(); }
+---
 
-// İkinci tanım (~satır 225):
-focus() { this.#engine.focus(); }
+## 2. Kritik Buglar (Yüksek Öncelik)
+
+### BUG-001: `getRawHTML()` Aslında Raw HTML Döndürmüyor
+
+**Dosya**: `src/editor.js`, satır 197-199  
+**Ciddiyet**: 🔴 Yüksek — API kontratı ihlali
+
+```javascript
+// Mevcut kod - HER İKİSİ DE AYNI ŞEYİ YAPIYOR
+getHTML() {
+  return this.#engine.getHTML(); // normalize edilmiş
+}
+getRawHTML() {
+  return this.#engine.getHTML(); // Bu da normalize edilmiş! BUG!
+}
 ```
 
-**Etki:** İlk `focus()` asla çalışmaz. JS class'larda ikinci method birincisini ezer, hata vermez.  
-**Çözüm:** İlk `focus()` tanımını silin, sadece `this.#engine.focus()` çağıran versiyonu bırakın.
+**Sorun**: `getRawHTML()` metodu `getHTML()` ile birebir aynı çıktıyı üretiyor. Her ikisi de `engine.getHTML()` çağırıyor, bu da `normalizeHTML(this.#root.innerHTML)` döndürüyor. Kullanıcı raw (normalize edilmemiş) HTML'e erişemiyor.
+
+**Beklenen davranış**: 
+```javascript
+getRawHTML() {
+  return this.#engine.contentEl.innerHTML;
+}
+```
+
+**Etki**: API'yi kullanan geliştiriciler raw HTML'e ihtiyaç duyduğunda yanıltıcı veri alıyor. TypeScript type tanımında (`types/index.d.ts`) `getRawHTML()` ayrı bir metot olarak belgelenmiş.
 
 ---
 
-### 1.2 ❌ `engine.js` — Paste Handler'da Gereksiz Dynamic Import
+### BUG-002: Liste Elemanlarını Çıkarırken Sıra Tersine Dönüyor
 
-**Dosya:** `src/engine.js`, `#handlePaste()` metodu  
-**Sorun:** `normalizeHTML` dosyanın en başında statik olarak zaten import ediliyor, ama paste handler'da tekrar `import('./normalizer.js')` ile dinamik import yapılıyor.
+**Dosya**: `src/commands.js`, satır 145-160  
+**Ciddiyet**: 🔴 Yüksek — Veri bozulması
 
-```js
-// Satır 5: import { normalizeHTML } from './normalizer.js';
+```javascript
+if (isInTargetList) {
+  leafBlocks.forEach(li => {
+    if (li.tagName !== 'LI') return;
+    const p = document.createElement('p');
+    // ...
+    const list = li.parentElement;
+    if (list) {
+      list.parentNode.insertBefore(p, list.nextSibling); // HER ZAMAN listenin hemen sonrasına
+      li.remove();
+      if (list.children.length === 0) list.remove();
+    }
+  });
+}
+```
+
+**Sorun**: Birden fazla liste elemanı seçilip listeyi kaldırdığında, her eleman `list.nextSibling` konumuna ekleniyor. İlk eleman listenin arkasına gider, ikinci eleman da listenin arkasına gider (ama birincinin önüne), üçüncü birincinin önüne... Sonuç: **elementlerin sırası tersine dönüyor**.
+
+**Senaryo**:
+```
+Başlangıç: [Liste: LI-A, LI-B, LI-C]
+İterasyon 1: LI-A → P-A listenin arkasına. [Liste(LI-B, LI-C), P-A]
+İterasyon 2: LI-B → P-B listenin arkasına. [Liste(LI-C), P-B, P-A]
+İterasyon 3: LI-C → P-C listenin arkasına. [P-C, P-B, P-A]  ← TERS SIRA!
+```
+
+**Düzeltme**: Ekleme referans noktasını takip etmek gerekiyor:
+```javascript
+let insertRef = list.nextSibling;
+leafBlocks.forEach(li => {
+  // ...
+  list.parentNode.insertBefore(p, insertRef);
+  // insertRef değişmez, her yeni p bunun ÖNÜNE eklenir
+});
+```
+
+---
+
+### BUG-003: Blockquote Çıkarırken Aynı Sıra Terslenme Sorunu
+
+**Dosya**: `src/commands.js`, satır 224-238  
+**Ciddiyet**: 🔴 Yüksek — BUG-002 ile aynı pattern
+
+```javascript
+if (isInBlockquote) {
+  leafBlocks.forEach(block => {
+    const bq = findParentTag(block, 'blockquote', root);
+    if (!bq) return;
+    const p = document.createElement('p');
+    // ...
+    bq.parentNode.insertBefore(p, bq.nextSibling); // Aynı bug!
+    block.remove();
+    if (bq.children.length === 0) bq.remove();
+  });
+}
+```
+
+**Sorun**: BUG-002 ile birebir aynı mantık hatası. Birden fazla paragraf içeren bir blockquote'tan çıkarıldığında paragrafların sırası tersine dönüyor.
+
+---
+
+### BUG-004: Placeholder Event Listener'ları `destroy()` Sırasında Temizlenmiyor
+
+**Dosya**: `src/editor.js`, satır 158-189 vs 230-243  
+**Ciddiyet**: 🔴 Yüksek — Memory leak
+
+```javascript
+#setupPlaceholder() {
+  const updatePlaceholder = () => { /* ... */ };  // Anonim fonksiyon
+  
+  contentEl.addEventListener('input', updatePlaceholder);   // ❌ Referans kayboluyor
+  contentEl.addEventListener('focus', updatePlaceholder);   // ❌ Referans kayboluyor
+  contentEl.addEventListener('blur', updatePlaceholder);    // ❌ Referans kayboluyor
+}
+
+destroy() {
+  // ... placeholder listener'ları TEMİZLENMİYOR!
+  this.#engine.destroy();
+  this.#toolbar.destroy();
+  this.#wrapper.remove();
+}
+```
+
+**Sorun**: `updatePlaceholder` fonksiyonu `#setupPlaceholder` metodunun local scope'unda tanımlı. Sınıf düzeyinde referans tutulmadığı için `destroy()` sırasında `removeEventListener` çağrılamıyor. Bu, özellikle SPA'larda tekrarlanan editor oluşturma/yok etme döngülerinde memory leak'e neden olur.
+
+**Düzeltme**: `updatePlaceholder` referansını sınıf düzeyinde saklamak:
+```javascript
+this._placeholderHandler = updatePlaceholder;
+// destroy() içinde:
+contentEl.removeEventListener('input', this._placeholderHandler);
 // ...
-// Satır ~277: import('./normalizer.js').then(({ normalizeHTML }) => { ... })
-```
-
-**Etki:**
-- Paste işlemi async oluyor → cursor paste bitmeden hareket edebilir
-- `.then()` callback içinde `this.#history.push()` çağrılıyor → timing race condition
-- Gereksiz network round-trip (modül cache'den gelir ama yine de async)
-
-**Çözüm:** Zaten import edilmiş olan `normalizeHTML`'i doğrudan kullanın:
-
-```js
-const clean = normalizeHTML(html, this.#classMap);
-this.#root.innerHTML = clean;
-this.#history.push(this.#root.innerHTML);
-this.#emit('change');
 ```
 
 ---
 
-### 1.3 ❌ `engine.js` — `#handleEnter()` ClassMap Tutarsızlığı
+### BUG-005: `clearFormatting` Komutu Linkleri ve Görselleri Siliyor
 
-**Dosya:** `src/engine.js`, `#handleEnter()` metodu  
-**Sorun:** `getClassFor('p')` çağrılıyor ama `this.#classMap` parametre olarak geçirilmiyor. Diğer tüm çağrılarda `getClassFor('p', this.#classMap)` şeklinde instance classMap kullanılıyor.
+**Dosya**: `src/commands.js`, satır 384-397  
+**Ciddiyet**: 🔴 Yüksek — Veri kaybı
 
-**Etki:** Kullanıcı `classMap` override verdiyse, Enter tuşuyla oluşturulan yeni paragraflar default class'ları alır, kullanıcının özel class'larını değil.  
-**Çözüm:** `getClassFor('p', this.#classMap)` olarak düzeltin.
-
----
-
-### 1.4 ❌ `commands.js` — Zero-Width Space (ZWS) Birikimi
-
-**Dosya:** `src/commands.js`, `toggleInline()` fonksiyonu  
-**Sorun:** Collapsed cursor'da inline format uygulanırken `\u200B` (zero-width space) ekleniyor ama bu karakterler hiçbir zaman temizlenmiyor.
-
-```js
-// satır ~35
-const zws = document.createTextNode('\u200B');
-wrapper.appendChild(zws);
+```javascript
+const clearInline = (node, target) => {
+  Array.from(node.childNodes).forEach(child => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      target.appendChild(child.cloneNode());
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      if (child.tagName === 'BR') {
+        target.appendChild(child.cloneNode());
+      } else {
+        clearInline(child, target); // Link (<a>), image (<img>) dahil HER element siliniyor
+      }
+    }
+  });
+};
 ```
 
-**Etki:**
-- `getHTML()` çıktısında görünmez `\u200B` karakterler birikir
-- Backend'e gönderilen HTML kirli olur
-- Copy-paste'te beklenmeyen davranışlar
-- Kelime sayımı yanlış çıkar
+**Sorun**: `clearInline` fonksiyonu BR hariç tüm element node'larını özyinelemeli olarak çözüyor. Bu şu anlama geliyor:
+- `<a href="...">link text</a>` → sadece "link text" kalıyor (link kaybolur)
+- `<img src="...">` → tamamen siliniyor (boş children)
+- `<code>snippet</code>` → sadece text kalıyor
 
-**Çözüm:** 
-1. `getHTML()` çağrılmadan önce ZWS temizliği yapılmalı
-2. Veya daha iyisi: `normalizeHTML()` içinde `\u200B` strip edilmeli
-3. En iyi yaklaşım: Kullanıcı yazmaya başladığında, boş ZWS-only text node'ları temizlenmeli (input event'inde)
+**Beklenen**: clearFormatting yalnızca inline stil etiketlerini (strong, em, u, s) temizlemeli; linkler, görseller ve code etiketleri korunmalıdır.
 
 ---
 
-### 1.5 ❌ `dev/index.html` — Typo: `explorer.getHTML()`
+## 3. Orta Seviye Buglar
 
-**Dosya:** `dev/index.html`, satır ~87  
-**Sorun:** `explorer.getHTML()` yazıyor, doğrusu `editor.getHTML()`.
+### BUG-006: Engine'deki `on('change')` Listener'ı Kaldırılamıyor
 
-**Etki:** HTML çıktı paneli çalışmaz (console error).  
-**Çözüm:** `explorer` → `editor` olarak düzeltin.
+**Dosya**: `src/engine.js`, satır 61-64  
+**Ciddiyet**: 🟡 Orta
 
----
-
-## 2. Memory Leak'ler
-
-### 2.1 🔴 `editor.js` — `selectionchange` Listener Temizlenmiyor
-
-**Dosya:** `src/editor.js`, `destroy()` metodu  
-**Sorun:** `#init()` içinde `document.addEventListener('selectionchange', this._selectionHandler)` ekleniyor ama `destroy()` içinde bu listener kaldırılmıyor.
-
-**Etki:** Editor destroy edildikten sonra bile her selection değişikliğinde callback çalışmaya devam eder. SPA'larda sayfa değişikliğinde birikir.  
-**Çözüm:** `destroy()` içine ekleyin:
-```js
-document.removeEventListener('selectionchange', this._selectionHandler);
+```javascript
+on(event, callback) {
+  if (!this.#listeners[event]) this.#listeners[event] = [];
+  this.#listeners[event].push(callback);
+}
+// off() metodu YOK!
 ```
 
+**Sorun**: `EditorEngine` sınıfında `on()` metodu var ama `off()` metodu yok. `editor.js` içindeki `#setupResizer` bölümünde `this.#engine.on('change', ...)` ile eklenen listener asla kaldırılamıyor. `destroy()` sırasında `this.#listeners = {}` ile toplu temizlik yapılıyor ama bu yalnızca Engine'in kendi destroy'unda gerçekleşiyor.
+
+**Etki**: Event listener yönetimi eksik. Dış bileşenlerin engine event'lerine subscribe olup unsubscribe olması mümkün değil.
+
 ---
 
-### 2.2 🔴 `engine.js` — Global Style Element Birikimi
+### BUG-007: Paste İşleminde Cursor Pozisyonu Doğru Ayarlanmıyor
 
-**Dosya:** `src/engine.js`, constructor  
-**Sorun:** Her `EditorEngine` instance'ı `document.head`'e yeni bir `<style>` elementi ekliyor. Hiçbir zaman kaldırılmıyor.
+**Dosya**: `src/engine.js`, satır 251-257  
+**Ciddiyet**: 🟡 Orta
 
-```js
-const style = document.createElement('style');
-style.textContent = `[contenteditable] ...`;
-document.head.appendChild(style);
+```javascript
+// Plain text paste
+const sel = window.getSelection();
+if (sel && sel.rangeCount) {
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(fragment);    // Fragment'in tüm children'ları range'e eklenir
+  range.collapse(false);         // BUG: Range'in sonu fragment'in sonuna gitmeyebilir
+}
 ```
 
-**Etki:** Multi-instance kullanımda (veya SPA'da mount/unmount döngülerinde) duplicate style elementleri birikir.  
-**Çözüm:** 
-1. Statik bir flag ile tek seferlik enjeksiyon: `if (!EditorEngine._styleInjected) { ... }`
-2. Veya: Eklenen style elementini referans tutup `destroy()`'da kaldırın
+**Sorun**: `range.insertNode(fragment)` çağrıldıktan sonra range'in boundary'leri güncellenmez. `range.collapse(false)` range'in end boundary'sine collapse eder, ama bu eklenen içeriğin sonuna denk gelmeyebilir. Sonuç: cursor yapıştırılan metnin başında veya ortasında kalabilir.
 
----
-
-### 2.3 🔴 `toolbar.js` — Dropdown `closeOnOutside` Listener Temizlenmiyor
-
-**Dosya:** `src/toolbar.js`, `#createDropdown()` ve `destroy()`  
-**Sorun:** Dropdown açıldığında `document.addEventListener('click', closeOnOutside)` ekleniyor. `destroy()` bu listener'ı kaldırmıyor.
-
-**Etki:** Her dropdown açılışında kalıcı document listener eklenir, hiç kaldırılmaz.  
-**Çözüm:** 
-1. `closeOnOutside` referansını instance'da saklayın
-2. `destroy()`'da `document.removeEventListener('click', closeOnOutside)` çağırın
-
----
-
-### 2.4 🔴 `toolbar.js` — `#promptOverlay` Cleanup Eksik
-
-**Dosya:** `src/toolbar.js`, `destroy()`  
-**Sorun:** Kullanıcı link/image prompt açıkken `destroy()` çağrılırsa, overlay DOM'da kalır.
-
-**Çözüm:** `destroy()` içinde:
-```js
-const overlay = document.querySelector('.rte-prompt-overlay');
-if (overlay) overlay.remove();
+**Düzeltme**: Fragment'in son child'ını takip edip, collapse'tan sonra cursor'ı ona taşımak:
+```javascript
+const lastNode = fragment.lastChild; // fragment boşalacak, önceden al
+range.insertNode(fragment);
+if (lastNode) {
+  range.setStartAfter(lastNode);
+  range.collapse(true);
+}
 ```
 
 ---
 
-### 2.5 🟡 `editor.js` — Placeholder Style Temizlenmiyor
+### BUG-008: `toggleInline` Multi-Node Selection'da Tutarsız Davranıyor
 
-**Dosya:** `src/editor.js`  
-**Sorun:** Placeholder CSS global olarak bir kez enjekte ediliyor, `destroy()` ile kaldırılmıyor.
+**Dosya**: `src/commands.js`, satır 15-59  
+**Ciddiyet**: 🟡 Orta
 
-**Etki:** Küçük leak, tek instance'da sorun değil ama SPA'larda birikim yapabilir.
+```javascript
+function toggleInline(tagName) {
+  // ...
+  const existing = findParentTag(range.startContainer, tagName, root);
+  // ↑ Sadece range.startContainer kontrol ediliyor!
+}
+```
 
----
+**Sorun**: `findParentTag` yalnızca selection'ın başlangıç container'ını kontrol ediyor. Eğer selection birden fazla node'u kapsıyor ve bazılarında ilgili format var bazılarında yoksa, davranış tutarsız olur.
 
-## 3. Veri Bütünlüğü Sorunları
+**Senaryo**:
+```html
+<p><strong>bold text</strong> normal text</p>
+<!-- Tüm satır seçilip Bold uygulandığında: -->
+<!-- "bold text" zaten strong içinde olduğu için unwrap oluyor -->
+<!-- ama "normal text" wrap EDİLMİYOR -->
+```
 
-### 3.1 🔴 `commands.js` — `setBlockType` Çoklu Blok Seçiminde Çalışmıyor
-
-**Dosya:** `src/commands.js`, `setBlockType()` fonksiyonu  
-**Sorun:** Sadece `selection.anchorNode`'un parent block'unu dönüştürüyor. Kullanıcı birden fazla paragrafı seçip "H2" yaptığında sadece ilk paragraf dönüşür.
-
-**Çözüm:** Selection'daki tüm block elementlerini iterate edip her birini dönüştürün.
-
----
-
-### 3.2 🔴 `commands.js` — `toggleList` Sonrası Cursor Kaybı
-
-**Dosya:** `src/commands.js`, `toggleList()` fonksiyonu  
-**Sorun:** Liste kaldırılırken (unwrap), oluşturulan paragraflar DOM'a ekleniyor ama cursor pozisyonu restore edilmiyor.
-
-**Etki:** Kullanıcı liste toggle'ladığında cursor kaybolur, yeniden tıklamak gerekir.  
-**Çözüm:** Unwrap sonrasında `sel.removeAllRanges()` + `sel.addRange(newRange)` ile cursor'ı son eklenen paragrafın sonuna yerleştirin.
+**Beklenen**: Tüm seçili metnin durumuna bakarak toggle kararı verilmeli (tamamı formatted ise unwrap, değilse wrap).
 
 ---
 
-### 3.3 🟡 `commands.js` — Image Komutu Block Wrapper Eksik
+### BUG-009: İlk Yükleme Sırasında Gereksiz History Girişi
 
-**Dosya:** `src/commands.js`, `image` komutu  
-**Sorun:** `<img>` raw olarak ekleniyor, `<p>` veya `<figure>` ile sarılmıyor. Normalizer block wrapper ekler ama canlı DOM'da bir süre wrapsız kalır.
+**Dosya**: `src/engine.js`, satır 48-49 ve `src/editor.js`, satır 92-94  
+**Ciddiyet**: 🟡 Orta — UX sorunu
 
-**Çözüm:** Image insert edilirken hemen bir `<p>` içine sarın.
+```javascript
+// engine.js constructor:
+this.#history.push(); // Boş editör durumu kaydedilir (<p><br></p>)
+
+// editor.js #init:
+if (this.#options.initialHTML) {
+  this.setHTML(this.#options.initialHTML); // Bu da history.push() çağırır
+}
+```
+
+**Sorun**: `initialHTML` sağlandığında, history stack'inde iki giriş oluşuyor:
+1. `[0]`: Boş editör (`<p><br></p>`)
+2. `[1]`: Initial content
+
+İlk undo yapıldığında kullanıcı **boş editöre** düşer, ki bu genellikle istenmeyen bir davranıştır. Kullanıcı initial content'e ilk undo'da geri döneceğini bekler.
 
 ---
 
-### 3.4 🟡 `history.js` — Duplicate Snapshot'lar
+### BUG-010: Heading Dropdown Escape Tuşuyla Kapanmıyor
 
-**Dosya:** `src/history.js`, `push()` metodu  
-**Sorun:** Aynı HTML içeriği art arda push edildiğinde (değişiklik yapmayan komutlar) yine yeni history entry oluşuyor.
+**Dosya**: `src/toolbar.js`, satır 230-235  
+**Ciddiyet**: 🟡 Orta — Erişilebilirlik
 
-**Etki:** Undo stack'te "hiçbir şey olmayan" adımlar birikir. Kullanıcı 5 kez Ctrl+Z basmalıyken 15 kez basmak zorunda kalabilir.  
-**Çözüm:** Push'tan önce son entry ile karşılaştırın:
-```js
-if (this.currentHTML() === html) return;
+```javascript
+btn.addEventListener('click', (e) => {
+  e.preventDefault();
+  const isHidden = dropdown.classList.toggle('hidden');
+  btn.setAttribute('aria-expanded', (!isHidden).toString());
+});
+// Escape tuşu dinlenmiyor!
+```
+
+**Sorun**: Heading dropdown'u açıldığında, kapatmak için tek yol dışarı tıklamak. Escape tuşu desteklenmiyor. WAI-ARIA Menubutton pattern'ine göre Escape tuşu dropdown'u kapatmalı ve focus'u trigger button'a döndürmelidir.
+
+---
+
+### BUG-011: Resizer Overlay Pozisyonu Scroll'da Güncellenmesi Gerekiyor
+
+**Dosya**: `src/resizer.js`, satır 70-89  
+**Ciddiyet**: 🟡 Orta
+
+```javascript
+#updateOverlayPosition() {
+  // offsetTop/offsetLeft tabanlı pozisyonlama
+  while (current && current !== root) {
+    top += current.offsetTop;
+    left += current.offsetLeft;
+    current = current.offsetParent;
+  }
+}
+```
+
+**Sorun**: Overlay pozisyonu sadece oluşturulduğunda ve resize sırasında güncelleniyor. Editör içerik alanı scroll edildiğinde overlay güncellenmiyor, bu da overlay'in görselden kaymasına neden olur.
+
+**Eksik**: `scroll` event listener eklenmesi gerekiyor. Ayrıca pencere `resize` event'i de göz ardı ediliyor.
+
+---
+
+### BUG-012: `normalizeElement` li/pre Etiketlerini Root-Level Block Olarak Tanımıyor
+
+**Dosya**: `src/normalizer.js`, satır 35  
+**Ciddiyet**: 🟡 Orta
+
+```javascript
+const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote']);
+// 'li' ve 'pre' yok!
+```
+
+`selection.js` dosyasındaki `BLOCK_TAGS` array'i `li` ve `pre` içeriyor, ancak normalizer'daki `BLOCK_TAGS` set'i içermiyor. Bu tutarsızlık, normalizer'ın `ensureBlockWrappers` fonksiyonunda `<li>` veya `<pre>` root-level'da kalırsa bunları `<p>` içine sarmaya çalışmasına neden olabilir.
+
+---
+
+## 4. Düşük Seviye Buglar / Edge Case'ler
+
+### BUG-013: Global CSS Stilleri Tüm Instance'lar Yok Edildikten Sonra Kalıyor
+
+**Dosyalar**: `src/editor.js` satır 168-184, `src/engine.js` satır 34-43  
+**Ciddiyet**: 🟢 Düşük
+
+İki global `<style>` elementi (`rt-editor-placeholder-styles`, `rt-editor-engine-styles`) `document.head`'e ekleniyor ama hiçbir zaman kaldırılmıyor. Tüm editor instance'ları yok edildikten sonra bile bu stiller DOM'da kalıyor.
+
+**Etki**: Minimal. Stil çakışma riski düşük ama SPA'larda temiz olmayan DOM bırakıyor.
+
+---
+
+### BUG-014: Image Komutu src URL'ini Doğrulamıyor
+
+**Dosya**: `src/commands.js`, satır 332-354  
+**Ciddiyet**: 🟢 Düşük (normalizer sonradan temizler)
+
+```javascript
+commands.set('image', (src, alt = '') => {
+  if (!src) return;
+  // ...
+  img.src = src; // Doğrudan atama, sanitizasyon yok
+});
+```
+
+**Sorun**: `img.src` doğrudan atanıyor, hiçbir URL validasyonu yok. `javascript:` veya `vbscript:` gibi zararlı scheme'ler kullanılabilir. Normalizer `getHTML()` çağrıldığında temizler, ama DOM'da geçici olarak zararlı URL bulunur ve tarayıcı bunu yüklemeye çalışabilir.
+
+---
+
+### BUG-015: `#justResized` Flag'i Race Condition'a Açık
+
+**Dosya**: `src/editor.js`, satır 132-135  
+**Ciddiyet**: 🟢 Düşük
+
+```javascript
+this.#justResized = true;
+setTimeout(() => { this.#justResized = false; }, 100);
+```
+
+**Sorun**: 100ms sabit timeout sihirli bir sayı (magic number). Yavaş cihazlarda 100ms yetmeyebilir, hızlı cihazlarda gereksiz yere uzun kalabilir. `requestAnimationFrame` veya event-driven bir mekanizma daha güvenilir olurdu.
+
+---
+
+### BUG-016: `restoreSelection` Offset Sınır Kontrolü `length` vs `childNodes.length` Karışıklığı
+
+**Dosya**: `src/selection.js`, satır 102-103  
+**Ciddiyet**: 🟢 Düşük
+
+```javascript
+range.setStart(startNode, Math.min(saved.startOffset, startNode.length || startNode.childNodes.length));
+range.setEnd(endNode, Math.min(saved.endOffset, endNode.length || endNode.childNodes.length));
+```
+
+**Sorun**: `startNode.length` text node'lar için `textContent.length` döner, element node'lar için `undefined`. `undefined || childNodes.length` doğru çalışır. Ama `startNode.length === 0` olduğunda (boş text node), `0 || childNodes.length` çalışır ki boş text node'un `childNodes` yoktur → `undefined` döner. Bu edge case try/catch ile yakalanıyor ama sessizce başarısız oluyor.
+
+---
+
+### BUG-017: `style` Attribute'u img Etiketinde İçerik Validasyonu Yok
+
+**Dosya**: `src/normalizer.js`, satır 26  
+**Ciddiyet**: 🟢 Düşük (CSS injection)
+
+```javascript
+const ALLOWED_ATTRS = {
+  img: ['src', 'alt', 'title', 'style'], // style gerekli: resize boyutları için
+};
+```
+
+**Sorun**: `style` attribute'u img'de izin veriliyor (resize width/height için gerekli) ama içeriği hiç valide edilmiyor. Kötü niyetli bir kullanıcı yapıştırmayla `style="background:url(tracking-pixel.gif)"` gibi değerler enjekte edebilir.
+
+**Önerilen düzeltme**: Style attribute'unu whitelist'lemek (sadece `width` ve `height` izin):
+```javascript
+if (name === 'style') {
+  const sanitized = attr.value.replace(/[^;:\s\w\d%px(auto)]/g, '');
+  el.setAttribute('style', sanitized);
+}
 ```
 
 ---
 
-### 3.5 🟡 `engine.js` — Debounce Timer Undo/Redo ile Çakışıyor
+## 5. Performans Sorunları
 
-**Dosya:** `src/engine.js`  
-**Sorun:** Kullanıcı yazar → debounce timer başlar → kullanıcı hemen Ctrl+Z yapar → debounce timer fire olur → undo'dan sonra yeni bir snapshot push eder → undo etkisiz kalır.
+### PERF-001: Her Input'ta Tüm DOM Normalize Ediliyor (KRİTİK)
 
-**Çözüm:** `undo()` ve `redo()` metotlarında `clearTimeout(this.#debounceTimer)` çağırın.
+**Dosya**: `src/engine.js`, satır 156-158  
+**Ciddiyet**: 🔴 Yüksek performans etkisi
 
----
+```javascript
+#onInput = (e) => {
+  this.#handleInput(e);
+  this.#normalizeContent(); // ← HER TUŞA BASIMDA ÇALIŞIYOR
+};
+```
 
-### 3.6 🟡 `normalizer.js` — Standalone `<li>` Invalid HTML Üretir
+`#normalizeContent()` → `normalizeElement(this.#root)` → `processNodes` → `container.querySelectorAll('*')` çağrı zinciri:
 
-**Dosya:** `src/normalizer.js`  
-**Sorun:** `<li>` ALLOWED_TAGS'da var ama BLOCK_TAGS'da yok. Bir `<li>` parent `<ul>/<ol>` olmadan gelirse, `<p>` ile sarılır → `<p><li>...</li></p>` = invalid HTML.
+1. Tüm DOM elemanlarını toplar
+2. Her birini kontrol eder (blocked tag, alias, allowed)
+3. Class'ları uygular
+4. Attribute'ları sanitize eder
+5. ZWS temizliği yapar
+6. `ensureBlockWrappers` çalıştırır
 
-**Çözüm:** `ensureBlockWrappers()` içinde orphan `<li>`'ları `<ul>` ile sarın, veya `<li>`'yı `<p>`'ye dönüştürün.
+**Büyük dokümanlarda** (100+ element), her tuşa basımda bu tam traversal yapılıyor.
 
----
-
-## 4. Stability İyileştirmeleri
-
-### 4.1 `engine.js` — `document.execCommand` Global Side Effects
-
-**Dosya:** `src/engine.js`, constructor  
-**Sorun:** `enableObjectResizing`, `enableInlineTableEditing`, `enableAbsolutePositionEditor` document-global olarak disable ediliyor. Sayfada başka editörler veya contenteditable alanlar varsa onları da etkiler.
-
-**Risk:** Düşük ama multi-editor veya 3rd party integration senaryolarında sorun çıkabilir.  
-**Not:** Tamamen çözmek zor (browser API'si global), ama en azından dokümante edilmeli.
-
----
-
-### 4.2 `selection.js` — `restoreSelection` Sessiz Hata Yutma
-
-**Dosya:** `src/selection.js`, `restoreSelection()` fonksiyonu  
-**Sorun:** `catch(e) {}` — boş catch bloğu hataları tamamen yutar.
-
-**Etki:** Selection restore başarısız olduğunda kullanıcı cursor kaybeder ama neden olduğu anlaşılamaz.  
-**Çözüm:** En azından `console.warn` ile loglamak, veya daha iyisi fallback olarak editor sonuna cursor koymak.
+**Önerilen çözümler**:
+- Normalizasyonu debounce etmek (300ms+)
+- Sadece değişen bölümü normalize etmek (MutationObserver ile)
+- Input sırasında lightweight check, idle'da full normalization
 
 ---
 
-### 4.3 `resizer.js` — Sol Handle'lar Yanlış Çalışıyor
+### PERF-002: `emitChange()` Her Çağrıda Tam HTML Normalizasyonu Yapıyor
 
-**Dosya:** `src/resizer.js`  
-**Sorun:** 4 handle (nw, ne, sw, se) tanımlı ama hepsi aynı `#onMouseDown` handler'ı kullanıyor. Bu handler sadece sağa-doğru resize hesaplıyor (`e.clientX - this.#startX`).
+**Dosya**: `src/engine.js`, satır 464-468  
+**Ciddiyet**: 🟡 Orta performans etkisi
 
-**Etki:** Sol handle'lardan (nw, sw) resize yapıldığında ters yönde çalışır.  
-**Çözüm:** Handle pozisyonuna göre delta'yı ters çevirin:
-```js
-const delta = isLeftHandle ? -(e.clientX - this.#startX) : (e.clientX - this.#startX);
+```javascript
+#emitChange() {
+  const html = this.getHTML();         // normalizeHTML(innerHTML) — full DOMParser parse
+  this.#onChange(html);
+  this.#emit('change', html);
+}
+```
+
+`getHTML()` her çağrıda:
+1. `new DOMParser().parseFromString(html, 'text/html')` — tam HTML dokümanı parse
+2. `normalizeElement(container)` — tam traversal
+3. `container.innerHTML` — serialization
+
+Bu fonksiyon her input event'inde çağrılıyor (`#handleInput` → `#emitChange`).
+
+**Önerilen**: onChange callback'ini debounce etmek veya dirty flag ile lazy evaluation yapmak.
+
+---
+
+### PERF-003: History Duplicate Check'te Gereksiz HTML Reconstruction
+
+**Dosya**: `src/history.js`, satır 34-38  
+**Ciddiyet**: 🟢 Düşük performans etkisi
+
+```javascript
+if (this.#stack.length > 0 && this.#index >= 0) {
+  const lastEntry = this.#stack[this.#index];
+  const lastHTML = lastEntry.fullHTML || this.#reconstructHTML(this.#index);
+  if (lastHTML === html) return;
+}
+```
+
+Son giriş delta ise, her push'ta `#reconstructHTML` çağrılıyor. Bu fonksiyon geriye doğru en yakın fullHTML'e yürür ve tüm delta'ları sırayla uygular. 19 delta biriktiğinde (fullHTML her 20 girişte bir), bu 19 string operasyonu demek.
+
+**Önerilen**: Son reconstruct edilen HTML'i cache'lemek:
+```javascript
+this._lastReconstructedHTML = html; // push sonunda güncelle
 ```
 
 ---
 
-### 4.4 `resizer.js` — Touch Event Desteği Yok
+### PERF-004: `selectionchange` Listener'ı Document Seviyesinde
 
-**Dosya:** `src/resizer.js`  
-**Sorun:** Sadece `mousedown/mousemove/mouseup` dinleniyor. Mobil cihazlarda `touchstart/touchmove/touchend` yok.
+**Dosya**: `src/editor.js`, satır 102-108  
+**Ciddiyet**: 🟢 Düşük performans etkisi
 
-**Etki:** Mobil kullanıcılar image resize yapamaz.  
-**Çözüm:** Touch event'leri ekleyin veya Pointer Events API'sine geçin (hem mouse hem touch'ı kapsar).
+```javascript
+this._selectionHandler = () => {
+  if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
+  this._selectionRaf = requestAnimationFrame(() => {
+    this.#toolbar.updateState(this.#engine.contentEl);
+  });
+};
+document.addEventListener('selectionchange', this._selectionHandler);
+```
 
----
+rAF throttling iyi bir pratik. Ancak `selectionchange` event'i doküman genelinde her selection değişikliğinde tetikleniyor — editör dışındaki selection'lar için de. `updateState` içinde `editorRoot.contains(node)` kontrolü var ama event handler yine de her seferinde çalışıyor.
 
-### 4.5 `resizer.js` — `#attachListeners()` Dead Code
-
-**Dosya:** `src/resizer.js`, satır ~23-25  
-**Sorun:** Boş method tanımlanmış, hiçbir yerden çağrılmıyor.
-
-**Çözüm:** Silin veya gerçek işlevsellik ekleyin.
-
----
-
-### 4.6 `resizer.js` — Scroll Sırasında Overlay Desync
-
-**Sorun:** Overlay pozisyonu `getBoundingClientRect()` ile hesaplanıyor ama scroll listener yok.  
-**Etki:** Editor scroll edildiğinde resize handle'ları image'dan kayar.  
-**Çözüm:** Scroll event dinleyip overlay pozisyonunu güncelleyin.
-
----
-
-### 4.7 `toolbar.js` — `#dropdown` Field Kullanılmıyor
-
-**Dosya:** `src/toolbar.js`, satır ~53  
-**Sorun:** `#dropdown` private field tanımlanıyor ama hiç atanmıyor. `destroy()` içinde kontrol ediliyor ama her zaman `undefined`.
-
-**Çözüm:** Ya düzgün şekilde atanmasını sağlayın, ya da dead code olarak temizleyin.
-
----
-
-## 5. Cilalama / Polish
-
-### 5.1 `toolbar.js` — Heading Dropdown Aktif Durum Gösterimi
-
-**Sorun:** Cursor bir `<h2>` içindeyken heading dropdown butonu görsel olarak değişmiyor. Kullanıcı hangi heading seviyesinde olduğunu bilemez.
-
-**Çözüm:** `updateState()` içinde mevcut blok tipini kontrol edip dropdown trigger'ının text'ini veya stilini güncelleyin.
-
----
-
-### 5.2 `toolbar.js` — Link Aktif Durum Gösterimi
-
-**Sorun:** Cursor bir `<a>` tag'i içindeyken link butonu highlight olmaz.
-
-**Çözüm:** `updateState()` içinde `findParentTag('a', ...)` kontrolü ekleyin.
-
----
-
-### 5.3 `toolbar.js` — Prompt Overlay Animasyon Class'ları
-
-**Sorun:** `animate-in`, `fade-in`, `slide-in-from-top-1` class'ları `tailwindcss-animate` eklentisine bağımlı. Bu eklenti projede dependency olarak yok.
-
-**Etki:** Prompt animasyonsuz açılır (işlevsel sorun yok ama cilalanmamış görünür).  
-**Çözüm:** Ya `tailwindcss-animate` dependency ekleyin, ya da inline `@keyframes` ile basit bir fade-in yapın.
-
----
-
-### 5.4 `toolbar.js` — Dropdown Keyboard Navigation Eksik
-
-**Sorun:** Toolbar butonları arasında keyboard navigation var ama dropdown açıldığında içindeki itemlar arasında arrow key ile gezilemez.
-
-**Çözüm:** Dropdown açıkken ArrowDown/ArrowUp ile itemlar arasında focus geçişi ekleyin.
-
----
-
-### 5.5 `resizer.js` — Resize Sırasında Cursor Geri Bildirimi
-
-**Sorun:** Resize başladığında body cursor'ı değişmiyor. Kullanıcı handle'ı tutup sürüklerken normal cursor görünüyor.
-
-**Çözüm:**
-```js
-document.body.style.cursor = 'nwse-resize'; // onMouseDown
-document.body.style.cursor = '';             // onMouseUp
+**Önerilen**: Handler'ın başında editör focus kontrolü eklemek:
+```javascript
+if (document.activeElement !== this.#engine.contentEl) return;
 ```
 
 ---
 
-### 5.6 `resizer.js` — Maximum Genişlik Sınırı Yok
+## 6. UX İyileştirmeleri
 
-**Sorun:** Minimum 50px var ama maximum yok. Image, editor container'dan taşabilir.
+### UX-001: Shift+Enter Soft Line Break Desteği Eksik
 
-**Çözüm:** `Math.min(newWidth, this.#img.parentElement.clientWidth)` ile parent genişliğe sınırlayın.
+**Dosya**: `src/engine.js`, satır 178-181  
+**Öncelik**: 🔴 Yüksek
 
----
-
-### 5.7 `commands.js` — `link` Komutu URL Doğrulaması
-
-**Sorun:** Link komutu hiçbir URL doğrulaması yapmıyor. `javascript:` protokolü ile XSS mümkün (normalizer output'ta temizliyor ama canlı DOM'da bir süre var olabiliyor).
-
-**Çözüm:** URL girişinde `javascript:`, `data:`, `vbscript:` protokollerini engelleyin.
-
----
-
-### 5.8 `commands.js` — `clearFormatting` Sonrası Block Normalization
-
-**Sorun:** `clearFormatting` plain text çıkarıp tekrar insert ediyor ama eğer sonuçta çıplak text node kalırsa (block wrapper olmadan), DOM geçersiz olabilir.
-
-**Çözüm:** `clearFormatting` sonrasında `#ensureDefaultBlock()` çağrılmalı.
-
----
-
-## 6. Test Altyapısı
-
-### 6.1 🔴 4 Başarısız Test (Pre-existing)
-
-```
-FAIL tests/class-map.test.js — missing `pre` and `code` in CLASS_MAP
-FAIL tests/icons.test.js — missing `codeBlock` icon  
-FAIL tests/commands.test.js — missing `codeBlock` command
+```javascript
+if (e.key === 'Enter' && !e.shiftKey) {
+  e.preventDefault();
+  this.#handleEnter();
+}
+// Shift+Enter tamamen işlenmiyor!
 ```
 
-**Durum:** Bu testler henüz implement edilmemiş `code`/`codeBlock` özelliği için yazılmış.  
-**Çözüm Seçenekleri:**
-1. Testleri `test.skip()` ile işaretleyin + TODO comment
-2. Veya `code`/`codeBlock` özelliğini implement edin (ama bu "yeni toolbar özelliği" kapsamında değil)
+**Mevcut**: Shift+Enter'a basıldığında tarayıcı varsayılan davranışını uygular (genellikle `<div>` veya naked `<br>` ekler). Bu, editörün normalize ettiği yapıyla tutarsız olabilir.
 
-**Öneri:** `test.skip()` + açıklayıcı comment en uygun, çünkü bu rapor "yeni özellik eklenmeyecek" diyor.
+**Beklenen**: Shift+Enter `<br>` elemanı eklemelidir (soft line break / satır sonu).
 
 ---
 
-### 6.2 🟡 Eksik Test Coverage
+### UX-002: Tab/Shift+Tab Liste Girintileme Desteği Yok
 
-Şu senaryolar test edilmiyor:
-- Multi-block selection ile heading değiştirme
-- Paste handler davranışı
-- Image resize (mouse event simulation)
-- Undo/redo sonrası cursor pozisyonu
-- `destroy()` sonrası memory leak kontrolü (listener count)
-- ZWS cleanup
-- `initialHTML` ile başlatma sonrası normalziation
+**Dosya**: `src/engine.js`  
+**Öncelik**: 🟡 Orta
+
+Liste elemanlarında Tab tuşuna basıldığında alt liste (nested list) oluşturma ve Shift+Tab ile bir seviye yukarı çıkma işlevi mevcut değil. Çoğu WYSIWYG editör bu davranışı destekler.
 
 ---
 
-## 7. Dev Ortamı / DX
+### UX-003: Ctrl+Y Redo Kısayolu Eksik (Windows Konvansiyonu)
 
-### 7.1 `dev/index.html` — Typo
+**Dosya**: `src/engine.js`, satır 171-175  
+**Öncelik**: 🟡 Orta
 
-**Satır ~87:** `explorer.getHTML()` → `editor.getHTML()`
+```javascript
+if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+  switch (e.key.toLowerCase()) {
+    case 'z': e.preventDefault(); this.exec('redo'); return;
+    // Ctrl+Y eksik!
+  }
+}
+```
 
-### 7.2 TypeScript Types — Eksik Tipler
-
-**Dosya:** `types/index.d.ts`  
-- `destroy()` return tipi belirtilmemiş (void olmalı)
-- `classMap` option tipi `Record<string, string>` olarak verilmiş, ama nested yapıyı (`{ p: string, h1: string, ... }`) daha iyi temsil edecek explicit interface olmalı
-
-### 7.3 Build Hedefi
-
-- `package.json` hem UMD hem ESM export ediyor — doğru
-- Source map config yok — production debugging zorlaşır
-- `types` field `package.json`'da var — doğru
+**Sorun**: Windows kullanıcıları Ctrl+Y'ye alışıktır ama sadece Ctrl+Shift+Z destekleniyor.
 
 ---
 
-## 8. Öncelik Sıralaması
+### UX-004: Heading Dropdown Mevcut Seçili Seviyeyi Göstermiyor
 
-### 🔴 P0 — Hemen (Fonksiyonel Bug'lar)
+**Dosya**: `src/toolbar.js`  
+**Öncelik**: 🟡 Orta
 
-| # | Sorun | Dosya | Etki |
-|---|-------|-------|------|
-| 1 | Paste handler dynamic import → race condition | `engine.js` | Paste bazen bozuk çalışır |
-| 2 | ZWS birikimi → kirli HTML output | `commands.js` | Backend'e bozuk veri gider |
-| 3 | `selectionchange` listener leak | `editor.js` | SPA'larda memory leak |
-| 4 | Global style birikimi | `engine.js` | Multi-instance'da performans |
-| 5 | Duplicate `focus()` method | `editor.js` | Sessiz override bug |
-| 6 | `handleEnter` classMap tutarsızlığı | `engine.js` | Kullanıcı classMap override'ı bozuk |
-| 7 | `dev/index.html` typo | `dev/index.html` | Dev playground çalışmaz |
+Heading dropdown butonu her zaman aynı ikonu gösteriyor. Aktif heading seviyesi sadece dropdown açıldığında arka plan rengiyle belirtiliyor. Kullanıcı dropdown'u açmadan mevcut heading seviyesini göremez.
 
-### 🟠 P1 — Kısa Vadede (Stabilite)
-
-| # | Sorun | Dosya | Etki |
-|---|-------|-------|------|
-| 8 | Dropdown listener leak | `toolbar.js` | Memory leak |
-| 9 | Prompt overlay cleanup | `toolbar.js` | Destroy sonrası DOM kalıntısı |
-| 10 | Debounce timer + undo çakışması | `engine.js` | Undo bazen çalışmaz |
-| 11 | History duplicate snapshot | `history.js` | Gereksiz undo adımları |
-| 12 | `toggleList` cursor kaybı | `commands.js` | UX bozuk |
-| 13 | `setBlockType` multi-block | `commands.js` | Kısmi format uygulama |
-| 14 | `restoreSelection` boş catch | `selection.js` | Debug zorlaşır |
-| 15 | Resizer sol handle'lar | `resizer.js` | Ters yönde resize |
-| 16 | Orphan `<li>` invalid HTML | `normalizer.js` | Bozuk çıktı |
-
-### 🟡 P2 — Cilalama (UX & Polish)
-
-| # | Sorun | Dosya | Etki |
-|---|-------|-------|------|
-| 17 | Heading dropdown aktif durum | `toolbar.js` | UX feedback eksik |
-| 18 | Link aktif durum gösterimi | `toolbar.js` | UX feedback eksik |
-| 19 | Touch event desteği (resizer) | `resizer.js` | Mobil kullanılamaz |
-| 20 | Resize cursor feedback | `resizer.js` | UX polish |
-| 21 | Image max genişlik sınırı | `resizer.js` | Image taşması |
-| 22 | Link URL doğrulaması | `commands.js` | Güvenlik hardening |
-| 23 | Dropdown keyboard navigation | `toolbar.js` | A11y |
-| 24 | Başarısız testleri skip'le | `tests/*` | CI yeşil olsun |
-| 25 | Dead code temizliği | `resizer.js`, `toolbar.js` | Kod temizliği |
-| 26 | Scroll sırasında overlay sync | `resizer.js` | Edge case |
-
-### 🔵 P3 — Nice-to-Have
-
-| # | Sorun | Dosya | Etki |
-|---|-------|-------|------|
-| 27 | Prompt animasyon class'ları | `toolbar.js` | Görsel polish |
-| 28 | Source map config | `vite.config.js` | Debug DX |
-| 29 | TypeScript tip iyileştirme | `types/index.d.ts` | DX |
-| 30 | `clearFormatting` block norm. | `commands.js` | Edge case |
-| 31 | Image block wrapper | `commands.js` | DOM consistency |
-| 32 | `execCommand` global etki doc | `engine.js` | Dokümantasyon |
+**Önerilen**: Buton metninde/ikonunda mevcut heading seviyesini yansıtmak (ör. "H1", "H2", "P").
 
 ---
 
-## Toplam Özet
+### UX-005: Link Prompt'unda Mevcut Link Bilgileri Gösterilmiyor
 
-| Kategori | Sayı |
-|----------|------|
-| Kritik Bug (P0) | 7 |
-| Stabilite (P1) | 9 |
-| Cilalama (P2) | 10 |
-| Nice-to-Have (P3) | 6 |
-| **Toplam** | **32** |
+**Dosya**: `src/toolbar.js`, satır 136-188  
+**Öncelik**: 🟡 Orta
+
+Kullanıcı bir linkin üzerine tıklayıp "Link" butonuna bastığında, prompt boş açılıyor. Mevcut linkin URL'i input'a doldurulmuyor. Düzenleme yerine yeni link oluşturma izlenimi veriyor.
 
 ---
 
-*Bu rapor toolbar'a yeni özellik eklenmeyecek şekilde, mevcut kodun kalitesini ve güvenilirliğini artırmaya yönelik bulguları içerir.*
+### UX-006: Image Eklerken Önizleme Yok
+
+**Dosya**: `src/toolbar.js` (prompt mekanizması)  
+**Öncelik**: 🟢 Düşük
+
+URL girildikten sonra "Apply" butonuna basılmadan önce görselin bir önizlemesi gösterilmiyor. Yanlış URL girildiğinde kırık görsel ekleniyor.
+
+---
+
+### UX-007: Resizer'da Maksimum Genişlik Sınırı Yok
+
+**Dosya**: `src/resizer.js`, satır 143-144  
+**Öncelik**: 🟢 Düşük
+
+```javascript
+const newWidth = Math.max(50, this.#startWidth + delta);
+// Minimum var (50px), ama maksimum YOK
+```
+
+Görsel, editör alanının genişliğini aşacak şekilde büyütülebilir, bu da yatay scrollbar oluşturabilir ve layout'u bozabilir.
+
+---
+
+### UX-008: Boş Editörde İlk Tıklamada Cursor Görünmeyebilir
+
+**Dosya**: `src/engine.js` ve placeholder CSS  
+**Öncelik**: 🟢 Düşük
+
+Placeholder CSS'te `position: absolute` kullanılıyor ama `left` ve `top` değerleri belirtilmemiyor. Bazı tarayıcılarda (özellikle padding'li editör alanlarında) placeholder metni beklenmedik konumda görünebilir.
+
+---
+
+### UX-009: Toolbar Prompt'unda Focus Trap Yok
+
+**Dosya**: `src/toolbar.js`, satır 136-188  
+**Öncelik**: 🟢 Düşük — Erişilebilirlik
+
+`aria-modal="true"` ayarlanmış ama gerçek bir focus trap implementasyonu yok. Tab tuşuyla prompt dışına çıkılabilir. Modal semantiği ile gerçek davranış uyuşmuyor.
+
+---
+
+## 7. Stabilite İyileştirmeleri
+
+### STAB-001: `destroy()` Çift Çağrılma Durumunda Güvenli Değil
+
+**Dosya**: `src/editor.js`, satır 230-243  
+**Öncelik**: 🟡 Orta
+
+`destroy()` iki kez çağrılırsa:
+- `this.#engine.destroy()` ikinci çağrıda event listener'ları tekrar kaldırmaya çalışır (zararsız)
+- `this.#wrapper.remove()` ikinci çağrıda zaten DOM'dan çıkartılmış element üzerinde çalışır (zararsız)
+- Ama `this.#currentResizer?.destroy()` ikinci çağrıda overlay zaten kaldırılmışsa sorun yok
+
+**Önerilen**: `#destroyed` flag'i eklemek:
+```javascript
+destroy() {
+  if (this.#destroyed) return;
+  this.#destroyed = true;
+  // ...
+}
+```
+
+---
+
+### STAB-002: Event Listener'larda Error Handling Eksik
+
+**Dosya**: `src/engine.js` — `#onKeydown`, `#onPaste`, `#onInput`  
+**Öncelik**: 🟡 Orta
+
+Event handler'lar try/catch ile sarılmamış. Eğer bir handler hata fırlatırsa, diğer listener'lar çalışmaz ve editör yanıt vermez hale gelebilir.
+
+**Özellikle riskli yerler**:
+- `#handleEnter()` — DOM manipülasyonu yoğun
+- `#handlePaste()` — Dış veri (clipboard) işleme
+- `#normalizeContent()` — Beklenmeyen DOM yapısı
+
+---
+
+### STAB-003: `EditorEngine.destroy()` `aria-label` Attribute'unu Kaldırmıyor
+
+**Dosya**: `src/engine.js`, satır 470-482  
+**Öncelik**: 🟢 Düşük
+
+```javascript
+destroy() {
+  // ...
+  this.#root.removeAttribute('contenteditable');
+  this.#root.removeAttribute('role');
+  this.#root.removeAttribute('aria-multiline');
+  // aria-label kaldırılmıyor!
+}
+```
+
+---
+
+### STAB-004: `off()` Metodu Olmaması Nedeniyle Dış Event Yönetimi İmkansız
+
+**Dosya**: `src/engine.js`  
+**Öncelik**: 🟡 Orta
+
+`on()` metodu public ama `off()` metodu yok. Bu, EditorEngine'i kullanan dış bileşenlerin event listener'larını temizleyememesi anlamına geliyor. Bu API eksikliği, entegrasyon senaryolarında memory leak'lere yol açabilir.
+
+---
+
+## 8. Güvenlik Değerlendirmesi
+
+### Genel Durum: ✅ İYİ
+
+Güvenlik mimarisi genel olarak sağlam. `normalizer.js` XSS ve injection vektörlerinin çoğunu doğru şekilde ele alıyor.
+
+### Güçlü Yönler:
+
+| Kontrol | Durum | Açıklama |
+|---------|-------|----------|
+| Script tag engelleme | ✅ | BLOCKED_TAGS set'inde |
+| Event handler attribute'ları | ✅ | `on*` prefix kontrolü |
+| javascript: scheme | ✅ | BLOCKED_PROTOCOLS ve BLOCKED_LINK_PROTOCOLS |
+| data: URI (linkler) | ✅ | BLOCKED_LINK_PROTOCOLS'da |
+| data: URI (görseller) | ✅ İzin veriliyor | Paste edilen görseller için gerekli |
+| HTML entity bypass | ✅ | DOMParser otomatik decode eder |
+| Tag aliasing (b→strong) | ✅ | Semantik doğruluk |
+| iframe/embed/object | ✅ | BLOCKED_TAGS'da |
+| Attribute whitelist | ✅ | Tag bazında whitelist |
+
+### Potansiyel Zayıf Noktalar:
+
+| Risk | Ciddiyet | Açıklama |
+|------|----------|----------|
+| CSS injection via `style` attr | 🟢 Düşük | img etiketinde style izin veriliyor, içerik valide edilmiyor (BUG-017) |
+| Komut çalıştırma öncesi sanitizasyon | 🟡 Orta | Image src doğrudan DOM'a set ediliyor (BUG-014) |
+| `rel="noopener noreferrer"` | ✅ | Link komutunda doğru ayarlanmış |
+| `target="_blank"` | ✅ | Dış linkler yeni sekmede açılıyor |
+
+---
+
+## 9. Kod Kalitesi ve Mimari
+
+### Güçlü Yönler:
+
+1. **Modüler mimari**: Her modül tek sorumluluk prensibine uygun
+2. **Private field kullanımı**: `#` prefix ile gerçek kapsülleme
+3. **Zero dependency**: Hiçbir dış bağımlılık yok (sadece devDeps: vite, vitest)
+4. **Delta compression**: History modülünde akıllı delta sıkıştırma
+5. **ARIA desteği**: Role, aria-label, aria-pressed, roving tabindex
+6. **Touch desteği**: Resizer'da mouse + touch + keyboard desteği
+7. **Tailwind class mapping**: Konfigüre edilebilir class map
+
+### İyileştirme Alanları:
+
+#### QUAL-001: BLOCK_TAGS Tanımı Çift Yerde ve Tutarsız
+
+**Dosyalar**: `src/selection.js` satır 6, `src/normalizer.js` satır 35
+
+```javascript
+// selection.js
+export const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'pre'];
+
+// normalizer.js
+const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote']);
+// 'li' ve 'pre' EKSİK!
+```
+
+İki farklı `BLOCK_TAGS` tanımı var ve listeleri farklı. Bu DRY prensibinin ihlali ve hatalara davetiye çıkarıyor.
+
+---
+
+#### QUAL-002: Tekrarlanan "Leaf Block" Bulma Kodu
+
+**Dosya**: `src/commands.js` — 5 kez tekrarlanıyor (satır 77-90, 126-138, 206-218, 367-376 ve toggleList)
+
+```javascript
+// Bu pattern 5 kez birebir copy-paste edilmiş:
+const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
+const leafBlocks = selectedBlocks.filter(block => {
+  return !selectedBlocks.some(other => block !== other && block.contains(other));
+});
+```
+
+**Önerilen**: Bu mantığı yardımcı fonksiyona çıkarmak:
+```javascript
+function getSelectedLeafBlocks(root, range) { /* ... */ }
+```
+
+---
+
+#### QUAL-003: Duplicated JSDoc Comment
+
+**Dosya**: `src/commands.js`, satır 4-9
+
+```javascript
+/**
+ * Create a command registry bound to an editor root element.
+ */
+/**
+ * Create a command registry bound to an editor root element.
+ */
+export function createCommandRegistry(root, classMap = CLASS_MAP) {
+```
+
+Aynı JSDoc yorumu iki kez yazılmış.
+
+---
+
+#### QUAL-004: `#dropdown` Private Field'ı Kullanılmıyor
+
+**Dosya**: `src/toolbar.js`, satır 53
+
+```javascript
+#dropdown = null; // Bu field ASLA güncellenmıyor
+```
+
+`#dropdown` tanımlı ama `#createDropdown` içinde kullanılmıyor. Dropdown referansı `wrapper` değişkeninde tutuluyor, `#dropdown`'a atanmıyor. `destroy()` içinde `this.#dropdown` kontrol ediliyor ama her zaman `null`.
+
+---
+
+#### QUAL-005: Tutarsız Event Listener Pattern'leri
+
+**Dosya**: Tüm kaynak dosyaları
+
+Engine'de arrow function class field pattern'i kullanılıyor:
+```javascript
+#onKeydown = (e) => { /* ... */ };
+```
+
+Editor'da bazı handler'lar bound function, bazıları arrow:
+```javascript
+this._selectionHandler = () => { /* ... */ };   // Tanımlanmış
+this.#onClick = (e) => { /* ... */ };            // Arrow class field
+this._resizerCleanup = (e) => { /* ... */ };     // Tanımlanmış ama _ prefix
+```
+
+Naming convention tutarsız: Bazı listener'lar `_prefix` (semi-private), bazıları `#prefix` (tam private).
+
+---
+
+## 10. Test Kapsamı Boşlukları
+
+### Mevcut durum: 92 test, 15 test dosyası — temel işlevler iyi kapsanmış.
+
+### Eksik Test Senaryoları:
+
+| Alan | Eksik Test | Öncelik |
+|------|-----------|---------|
+| **BUG-002 testi** | Multi-LI list unwrap sıra testi | 🔴 Yüksek |
+| **BUG-003 testi** | Multi-block blockquote unwrap sıra testi | 🔴 Yüksek |
+| **BUG-005 testi** | clearFormatting link/image koruma testi | 🔴 Yüksek |
+| **getRawHTML()** | getRawHTML vs getHTML farkı testi | 🔴 Yüksek |
+| **Paste cursor** | Paste sonrası cursor pozisyon testi | 🟡 Orta |
+| **Multi-node toggle** | Karışık formatlı selection'da toggle testi | 🟡 Orta |
+| **Shift+Enter** | Soft line break oluşturma testi | 🟡 Orta |
+| **History maxSize** | maxSize aşıldığında davranış testi | 🟡 Orta |
+| **destroy() çift çağrı** | İkinci destroy çağrısında hata olmama testi | 🟢 Düşük |
+| **Scroll + resizer** | Scroll sonrası overlay pozisyon testi | 🟢 Düşük |
+| **CSS injection** | img style attribute injection testi | 🟢 Düşük |
+| **Escape key** | Dropdown'da Escape tuşu testi | 🟢 Düşük |
+| **Ctrl+Y** | Windows redo kısayol testi | 🟢 Düşük |
+
+---
+
+## 11. Özet ve Önceliklendirme
+
+### Kritik (Hemen Düzeltilmeli):
+
+| # | Bug | Etki | Dosya |
+|---|-----|------|-------|
+| BUG-001 | getRawHTML() normalize dönüyor | API ihlali | editor.js:198 |
+| BUG-002 | Liste elemanları ters sıra | Veri bozulması | commands.js:145 |
+| BUG-003 | Blockquote elemanları ters sıra | Veri bozulması | commands.js:224 |
+| BUG-004 | Placeholder listener'lar temizlenmiyor | Memory leak | editor.js:158 |
+| BUG-005 | clearFormatting link/image siliyor | Veri kaybı | commands.js:384 |
+| PERF-001 | Her input'ta tam DOM normalizasyonu | Performans | engine.js:156 |
+
+### Yüksek Öncelik:
+
+| # | Konu | Tür | Dosya |
+|---|------|-----|-------|
+| UX-001 | Shift+Enter desteği yok | UX | engine.js:178 |
+| BUG-006 | off() metodu eksik | Stabilite | engine.js |
+| BUG-008 | toggleInline tutarsız davranış | Bug | commands.js:15 |
+| BUG-010 | Heading dropdown Escape yok | A11y | toolbar.js:230 |
+| PERF-002 | emitChange tam normalizasyon | Performans | engine.js:464 |
+
+### Orta Öncelik:
+
+| # | Konu | Tür |
+|---|------|-----|
+| UX-002 | Tab indentation desteği yok | UX |
+| UX-003 | Ctrl+Y redo eksik | UX |
+| UX-004 | Heading seviyesi göstergesi yok | UX |
+| UX-005 | Link prompt mevcut URL göstermiyor | UX |
+| BUG-007 | Paste cursor pozisyonu | Bug |
+| BUG-009 | İlk yükleme çift history | Bug |
+| BUG-011 | Resizer scroll problemi | Bug |
+| BUG-012 | BLOCK_TAGS tutarsızlığı | Bug |
+| STAB-001 | Çift destroy güvenliği | Stabilite |
+| STAB-002 | Event handler error handling | Stabilite |
+| QUAL-001 | BLOCK_TAGS tekrarı | Kod kalitesi |
+| QUAL-002 | Leaf block kodu tekrarı | Kod kalitesi |
+
+### Düşük Öncelik:
+
+| # | Konu | Tür |
+|---|------|-----|
+| BUG-013 | Global CSS stili temizlenmiyor | Bug |
+| BUG-014 | Image src doğrulama eksik | Güvenlik |
+| BUG-015 | justResized race condition | Bug |
+| BUG-016 | Selection offset edge case | Bug |
+| BUG-017 | Style attr validasyonu yok | Güvenlik |
+| UX-006 | Image önizleme yok | UX |
+| UX-007 | Resizer max width yok | UX |
+| UX-008 | Placeholder pozisyon sorunu | UX |
+| UX-009 | Focus trap eksik | A11y |
+| QUAL-003 | Duplicate JSDoc | Kod kalitesi |
+| QUAL-004 | Kullanılmayan #dropdown field | Kod kalitesi |
+| QUAL-005 | Tutarsız event pattern | Kod kalitesi |
+
+---
+
+> **Toplam Tespit**: 17 Bug + 9 UX İyileştirme + 4 Stabilite + 4 Performans + 5 Kod Kalitesi + 8 Güvenlik Kontrolü = **47 madde**

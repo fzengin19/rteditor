@@ -388,15 +388,18 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
       p.className = getClassFor('p', classMap);
       
       // 2. Clear inline formatting while moving contents
+      // Tags to preserve during clearFormatting (not inline style tags)
+      const PRESERVE_TAGS = new Set(['BR', 'A', 'IMG', 'CODE']);
       const clearInline = (node, target) => {
         Array.from(node.childNodes).forEach(child => {
           if (child.nodeType === Node.TEXT_NODE) {
             target.appendChild(child.cloneNode());
           } else if (child.nodeType === Node.ELEMENT_NODE) {
-            // Recurse into element but don't keep the element itself (unless it's a BR)
-            if (child.tagName === 'BR') {
-              target.appendChild(child.cloneNode());
+            if (PRESERVE_TAGS.has(child.tagName)) {
+              // Preserve the element as-is (links, images, code, br)
+              target.appendChild(child.cloneNode(true));
             } else {
+              // Recurse into inline style elements (strong, em, u, s, etc.)
               clearInline(child, target);
             }
           }

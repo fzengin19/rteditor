@@ -329,4 +329,108 @@ describe('command registry', () => {
       expect(img.alt).toBe('ok');
     });
   });
+
+  describe('link URL sanitization', () => {
+    it('rejects javascript: URLs in link command', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'javascript:alert(1)');
+
+      expect(root.querySelector('a')).toBeNull();
+    });
+
+    it('rejects vbscript: URLs in link command', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'vbscript:MsgBox("xss")');
+
+      expect(root.querySelector('a')).toBeNull();
+    });
+
+    it('rejects javascript: URLs with mixed case', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'JaVaScRiPt:alert(1)');
+
+      expect(root.querySelector('a')).toBeNull();
+    });
+
+    it('rejects data: URLs in link command', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'data:text/html,<script>alert(1)</script>');
+
+      expect(root.querySelector('a')).toBeNull();
+    });
+
+    it('accepts safe http/https URLs in link command', () => {
+      const textNode = root.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'https://example.com');
+
+      const link = root.querySelector('a');
+      expect(link).not.toBeNull();
+      expect(link.href).toBe('https://example.com/');
+    });
+
+    it('does not sanitize when removing a link (empty url)', () => {
+      root.innerHTML = '<p><a href="https://example.com">hello</a> world</p>';
+      const link = root.querySelector('a');
+      const range = document.createRange();
+      range.selectNodeContents(link);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', '');
+
+      expect(root.querySelector('a')).toBeNull();
+      expect(root.textContent).toContain('hello');
+    });
+
+    it('rejects javascript: URLs when updating existing link', () => {
+      root.innerHTML = '<p><a href="https://example.com">hello</a> world</p>';
+      const link = root.querySelector('a');
+      const range = document.createRange();
+      range.selectNodeContents(link);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('link', 'javascript:alert(1)');
+
+      const updatedLink = root.querySelector('a');
+      expect(updatedLink.href).not.toContain('javascript');
+    });
+  });
 });

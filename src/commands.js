@@ -33,6 +33,25 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     }
   }
 
+  function isSafeLinkUrl(url) {
+    if (typeof url !== 'string') return false;
+    const value = url.trim();
+    if (!value) return false;
+
+    const lower = value.toLowerCase();
+    if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('file:') || lower.startsWith('data:')) {
+      return false;
+    }
+
+    try {
+      const parsed = new URL(value, window.location.href);
+      const protocol = parsed.protocol.toLowerCase();
+      return protocol === 'http:' || protocol === 'https:' || protocol === 'blob:' || protocol === 'mailto:' || protocol === 'tel:';
+    } catch {
+      return !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value);
+    }
+  }
+
   function isRangeFullyFormatted(range, tagName) {
     if (range.collapsed) {
       return !!findParentTag(range.startContainer, tagName, root);
@@ -310,6 +329,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const existingLink = findParentTag(range.startContainer, 'a', root);
     if (existingLink) {
       if (url) {
+        if (!isSafeLinkUrl(url)) return;
         existingLink.href = url;
       } else {
         // Remove link, keep text
@@ -320,7 +340,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
       return;
     }
 
-    if (!url) return;
+    if (!url || !isSafeLinkUrl(url)) return;
 
     const a = document.createElement('a');
     a.href = url;

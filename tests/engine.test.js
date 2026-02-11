@@ -189,6 +189,28 @@ describe('EditorEngine', () => {
     vi.useRealTimers();
   });
 
+  it('Shift+Enter inserts a <br> soft line break instead of new paragraph (UX-001)', () => {
+    const engine = new EditorEngine(root);
+    root.innerHTML = `<p class="${CLASS_MAP.p}">Hello world</p>`;
+    const p = root.querySelector('p');
+    const textNode = p.firstChild;
+
+    const range = document.createRange();
+    range.setStart(textNode, 5);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true });
+    root.dispatchEvent(event);
+
+    const brs = root.querySelectorAll('br');
+    expect(brs.length).toBeGreaterThanOrEqual(1);
+    // Should still be one paragraph, not two
+    expect(root.querySelectorAll('p').length).toBe(1);
+  });
+
   it('debounces change emission during rapid input events (PERF-002)', () => {
     vi.useFakeTimers();
     const onChange = vi.fn();

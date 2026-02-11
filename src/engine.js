@@ -199,11 +199,45 @@ export class EditorEngine {
       }
     }
 
+    // Shift+Enter: insert soft line break (<br>)
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      this.#handleShiftEnter();
+      return;
+    }
+
     // Enter key: create new paragraph (not div)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       this.#handleEnter();
     }
+  }
+
+  #handleShiftEnter() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+
+    if (!range.collapsed) {
+      range.deleteContents();
+    }
+
+    const br = document.createElement('br');
+    range.insertNode(br);
+
+    const afterBr = document.createRange();
+    afterBr.setStartAfter(br);
+    afterBr.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(afterBr);
+
+    if (!br.nextSibling || (br.nextSibling.nodeType === Node.ELEMENT_NODE && br.nextSibling.tagName === 'BR')) {
+      const extraBr = document.createElement('br');
+      br.parentNode.insertBefore(extraBr, br.nextSibling);
+    }
+
+    this.#history.push();
+    this.#emitChange({ debounced: false });
   }
 
   #handleEnter() {

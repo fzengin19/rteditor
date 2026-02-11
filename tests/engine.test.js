@@ -80,4 +80,42 @@ describe('EditorEngine', () => {
     expect(root.innerHTML).toContain('Safe');
     expect(root.querySelector('p').className).toContain(CLASS_MAP.p.split(' ')[0]);
   });
+
+  it('off() removes a previously registered event listener (BUG-006)', () => {
+    const engine = new EditorEngine(root);
+    const spy = vi.fn();
+    engine.on('change', spy);
+    engine.exec('bold');
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    spy.mockClear();
+    engine.off('change', spy);
+    engine.exec('italic');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('off() only removes the specific callback, not all listeners (BUG-006)', () => {
+    const engine = new EditorEngine(root);
+    const spy1 = vi.fn();
+    const spy2 = vi.fn();
+    engine.on('change', spy1);
+    engine.on('change', spy2);
+    engine.exec('bold');
+    expect(spy1).toHaveBeenCalledTimes(1);
+    expect(spy2).toHaveBeenCalledTimes(1);
+
+    spy1.mockClear();
+    spy2.mockClear();
+    engine.off('change', spy1);
+    engine.exec('italic');
+    expect(spy1).not.toHaveBeenCalled();
+    expect(spy2).toHaveBeenCalledTimes(1);
+  });
+
+  it('off() does not throw for unregistered event or callback (BUG-006)', () => {
+    const engine = new EditorEngine(root);
+    expect(() => engine.off('nonexistent', () => {})).not.toThrow();
+    engine.on('change', () => {});
+    expect(() => engine.off('change', () => {})).not.toThrow();
+  });
 });

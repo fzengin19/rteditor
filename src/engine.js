@@ -63,6 +63,14 @@ export class EditorEngine {
     this.#listeners[event].push(callback);
   }
 
+  /** Remove a previously registered event listener. */
+  off(event, callback) {
+    const list = this.#listeners[event];
+    if (!list) return;
+    const idx = list.indexOf(callback);
+    if (idx !== -1) list.splice(idx, 1);
+  }
+
   #emit(event, ...args) {
     if (this.#listeners[event]) {
       this.#listeners[event].forEach(cb => cb(...args));

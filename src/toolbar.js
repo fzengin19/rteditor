@@ -111,13 +111,24 @@ export class Toolbar {
       e.preventDefault();
       if (def.type === 'prompt') {
         const currentSel = saveSelection(this.#editor.contentEl);
+        let initialValue = '';
+        if (def.command === 'link') {
+          const sel = this.#editor.contentEl.ownerDocument.getSelection();
+          const node = sel?.anchorNode;
+          if (node) {
+            const existingLink = findParentTag(node, 'a', this.#editor.contentEl);
+            if (existingLink) {
+              initialValue = existingLink.getAttribute('href') || '';
+            }
+          }
+        }
         this.#showPrompt(def.label, (val) => {
           if (val) {
             // Re-apply captured selection if it was lost
             if (currentSel) restoreSelection(this.#editor.contentEl, currentSel);
             this.#editor.exec(def.command, val);
           }
-        });
+        }, initialValue);
       } else {
         this.#editor.exec(def.command);
       }
@@ -133,7 +144,7 @@ export class Toolbar {
     this.#container.appendChild(btn);
   }
 
-  #showPrompt(label, callback) {
+  #showPrompt(label, callback, initialValue = '') {
     if (this.#promptOverlay) this.#promptOverlay.remove();
 
     this.#promptOverlay = document.createElement('div');
@@ -146,6 +157,7 @@ export class Toolbar {
     input.type = 'text';
     input.placeholder = `Enter ${label.toLowerCase()} URL...`;
     input.className = 'flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none';
+    input.value = initialValue;
     
     const applyBtn = document.createElement('button');
     applyBtn.type = 'button';

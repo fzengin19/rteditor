@@ -103,6 +103,7 @@ export class RichTextEditor {
     // Using a bound listener to allow cleanup, throttled with rAF
     this._selectionRaf = null;
     this._selectionHandler = () => {
+      if (document.activeElement !== this.#engine.contentEl) return;
       if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
       this._selectionRaf = requestAnimationFrame(() => {
         this.#toolbar.updateState(this.#engine.contentEl);

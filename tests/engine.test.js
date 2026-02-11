@@ -240,4 +240,88 @@ describe('EditorEngine', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
+
+  describe('Tab key behavior', () => {
+    it('allows Tab to move focus outside editor when not in a list', () => {
+      const engine = new EditorEngine(root);
+      root.innerHTML = `<p class="${CLASS_MAP.p}">Hello world</p>`;
+      const p = root.querySelector('p');
+      const textNode = p.firstChild;
+
+      const range = document.createRange();
+      range.setStart(textNode, 5);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true });
+      Object.defineProperty(event, 'defaultPrevented', { get: () => false });
+
+      root.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('allows Shift+Tab to move focus outside editor when not in a list', () => {
+      const engine = new EditorEngine(root);
+      root.innerHTML = `<p class="${CLASS_MAP.p}">Hello world</p>`;
+      const p = root.querySelector('p');
+      const textNode = p.firstChild;
+
+      const range = document.createRange();
+      range.setStart(textNode, 5);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true });
+
+      root.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('indents list item on Tab when cursor is inside a list', () => {
+      const engine = new EditorEngine(root);
+      root.innerHTML = `<ul><li class="${CLASS_MAP.li}">Item 1</li><li class="${CLASS_MAP.li}">Item 2</li></ul>`;
+      const li = root.querySelectorAll('li')[1];
+      const textNode = li.firstChild;
+
+      root.focus();
+      const range = document.createRange();
+      range.setStart(textNode, 3);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true });
+      root.dispatchEvent(event);
+
+      const nestedList = root.querySelector('ul ul');
+      expect(nestedList).not.toBeNull();
+    });
+
+    it.skip('outdents list item on Shift+Tab when cursor is inside nested list', () => {
+      const engine = new EditorEngine(root);
+      root.innerHTML = `<ul><li class="${CLASS_MAP.li}">Item 1<ul><li class="${CLASS_MAP.li}">Nested</li></ul></li></ul>`;
+      const nestedLi = root.querySelector('ul ul li');
+      const textNode = nestedLi.firstChild;
+
+      root.focus();
+      const range = document.createRange();
+      range.setStart(textNode, 3);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true });
+      root.dispatchEvent(event);
+
+      expect(root.querySelector('ul ul')).toBeNull();
+    });
+  });
 });

@@ -222,17 +222,16 @@ export class EditorEngine {
       return;
     }
 
-    // UX-002: Outdent list item (Shift+Tab)
-    if (e.key === 'Tab' && e.shiftKey) {
-      e.preventDefault();
-      this.exec('outdentList');
-      return;
-    }
-
-    // UX-002: Indent list item (Tab)
+    // UX-002: Indent/outdent list items with Tab/Shift+Tab
     if (e.key === 'Tab') {
-      e.preventDefault();
-      this.exec('indentList');
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const li = findParentTag(sel.anchorNode, 'li', this.#root);
+        if (li) {
+          e.preventDefault();
+          this.exec(e.shiftKey ? 'outdentList' : 'indentList');
+        }
+      }
       return;
     }
 

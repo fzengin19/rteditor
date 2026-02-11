@@ -88,4 +88,14 @@ describe('RichTextEditor Integration', () => {
     expect(editor.getHTML()).toContain('Initial');
     editor.destroy();
   });
+
+  it('does not undo to empty state after initialHTML load (BUG-009)', () => {
+    const initialHTML = '<p>Initial</p>';
+    const editor = new RichTextEditor(container, { initialHTML });
+
+    editor.exec('undo');
+
+    expect(editor.getText().trim()).toBe('Initial');
+    editor.destroy();
+  });
 });

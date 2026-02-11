@@ -121,9 +121,12 @@ export class EditorEngine {
   }
 
   /** Set HTML content (normalized). */
-  setHTML(html) {
+  setHTML(html, { resetHistory = false } = {}) {
     this.#root.innerHTML = html || '';
     this.#ensureDefaultBlock();
+    if (resetHistory) {
+      this.#history = new History(this.#root);
+    }
     this.#history.push();
     this.#emitChange();
   }

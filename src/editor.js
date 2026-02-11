@@ -90,7 +90,8 @@ export class RichTextEditor {
   #init() {
     // Set initial content
     if (this.#options.initialHTML) {
-      this.setHTML(this.#options.initialHTML);
+      const cleanHTML = normalizeHTML(this.#options.initialHTML, this.#classMap);
+      this.#engine.setHTML(cleanHTML, { resetHistory: true });
     }
 
     // Placeholder Logic

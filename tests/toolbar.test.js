@@ -120,4 +120,53 @@ describe('Toolbar', () => {
     // Check initial aria-selected
     expect(options[0].getAttribute('aria-selected')).toBe('false');
   });
+
+  test('closes prompt when clicking outside', async () => {
+    document.body.appendChild(toolbar.element);
+    const linkBtn = document.querySelector('button[aria-label="Link"]');
+    linkBtn.click();
+    
+    // Wait for the timeout in implementation
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    // Click outside (on body)
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  test('traps focus inside prompt dialog', async () => {
+    document.body.appendChild(toolbar.element);
+    const linkBtn = document.querySelector('button[aria-label="Link"]');
+    linkBtn.click();
+    
+    // Wait for prompt setup
+    await new Promise(resolve => setTimeout(resolve, 20));
+    
+    const dialog = document.querySelector('[role="dialog"]');
+    const input = dialog.querySelector('input');
+    const cancelBtn = dialog.querySelectorAll('button')[1];
+    
+    // Simulate Tab on last element (Cancel)
+    cancelBtn.focus();
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true });
+    vi.spyOn(event, 'preventDefault');
+    vi.spyOn(input, 'focus');
+    
+    dialog.dispatchEvent(event); // Dispatch on dialog (bubbles) or button
+    // The listener is on promptOverlay (dialog)
+    
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(input.focus).toHaveBeenCalled();
+    
+    // Simulate Shift+Tab on first element (Input)
+    input.focus();
+    const shiftTab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true });
+    vi.spyOn(shiftTab, 'preventDefault');
+    vi.spyOn(cancelBtn, 'focus');
+    
+    dialog.dispatchEvent(shiftTab);
+    
+    expect(shiftTab.preventDefault).toHaveBeenCalled();
+    expect(cancelBtn.focus).toHaveBeenCalled();
+  });
 });

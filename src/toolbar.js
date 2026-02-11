@@ -168,8 +168,41 @@ export class Toolbar {
     cancelBtn.className = 'px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-medium rounded hover:bg-gray-200 transition-colors';
     cancelBtn.textContent = 'Cancel';
 
+    const handleOutsideClick = (e) => {
+      if (this.#promptOverlay && !this.#promptOverlay.contains(e.target)) {
+        close();
+      }
+    };
+
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') {
+        close();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusable = [input, applyBtn, cancelBtn];
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
     const close = () => {
-      this.#promptOverlay.remove();
+      document.removeEventListener('click', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeydown);
+      this.#promptOverlay?.remove();
       this.#promptOverlay = null;
     };
 
@@ -181,8 +214,10 @@ export class Toolbar {
     cancelBtn.onclick = close;
     
     input.onkeydown = (e) => {
-      if (e.key === 'Enter') applyBtn.click();
-      if (e.key === 'Escape') close();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyBtn.click();
+      }
     };
 
     this.#promptOverlay.appendChild(input);
@@ -195,7 +230,11 @@ export class Toolbar {
     }
     this.#container.appendChild(this.#promptOverlay);
     
-    setTimeout(() => input.focus(), 10);
+    setTimeout(() => {
+      input.focus();
+      document.addEventListener('click', handleOutsideClick);
+    }, 10);
+    document.addEventListener('keydown', handleKeydown);
   }
 
   #createDropdown(name, def) {

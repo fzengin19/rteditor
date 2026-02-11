@@ -92,6 +92,26 @@ describe('command registry', () => {
       expect(el.className).toBe(CLASS_MAP.s);
       expect(el.textContent).toBe('hello');
     });
+
+    it('applies format across mixed formatted selection (BUG-008)', () => {
+      root.innerHTML = `<p class="${CLASS_MAP.p}"><strong>bold</strong> normal</p>`;
+      const p = root.querySelector('p');
+      const strongText = p.querySelector('strong').firstChild;
+      const plainText = p.lastChild;
+
+      const range = document.createRange();
+      range.setStart(strongText, 2);
+      range.setEnd(plainText, 5);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      registry.exec('bold');
+
+      const strongNodes = Array.from(root.querySelectorAll('strong'));
+      const boldText = strongNodes.map(node => node.textContent).join('');
+      expect(boldText.includes('ld nor')).toBe(true);
+    });
   });
 
   describe('block: h2', () => {

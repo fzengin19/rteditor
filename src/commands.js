@@ -10,6 +10,33 @@ import { getClosestBlock, findParentTag, saveSelection, restoreSelection, BLOCK_
 export function createCommandRegistry(root, classMap = CLASS_MAP) {
   const commands = new Map();
 
+  function isRangeFullyFormatted(range, tagName) {
+    if (range.collapsed) {
+      return !!findParentTag(range.startContainer, tagName, root);
+    }
+
+    const common = range.commonAncestorContainer;
+    if (common.nodeType === Node.TEXT_NODE) {
+      return !!findParentTag(common, tagName, root);
+    }
+
+    const walker = document.createTreeWalker(
+      common,
+      NodeFilter.SHOW_TEXT,
+      { acceptNode: node => (range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT) }
+    );
+
+    let hasText = false;
+    let node = walker.nextNode();
+    while (node) {
+      hasText = true;
+      if (!findParentTag(node, tagName, root)) return false;
+      node = walker.nextNode();
+    }
+
+    return hasText;
+  }
+
   // --- INLINE COMMANDS ---
 
   function toggleInline(tagName) {
@@ -19,8 +46,9 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     if (!root.contains(range.commonAncestorContainer)) return;
 
     const existing = findParentTag(range.startContainer, tagName, root);
+    const fullyFormatted = isRangeFullyFormatted(range, tagName);
 
-    if (existing) {
+    if (existing && fullyFormatted) {
       // Unwrap: replace element with its children
       const parent = existing.parentNode;
       while (existing.firstChild) {

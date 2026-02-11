@@ -164,16 +164,31 @@ export class EditorEngine {
   }
 
   #onKeydown = (e) => {
-    this.#handleKeydown(e);
+    try {
+      this.#handleKeydown(e);
+    } catch (err) {
+      console.error('RTEditor keydown error:', err);
+      this.#emit('error', err);
+    }
   };
 
   #onPaste = (e) => {
-    this.#handlePaste(e);
+    try {
+      this.#handlePaste(e);
+    } catch (err) {
+      console.error('RTEditor paste error:', err);
+      this.#emit('error', err);
+    }
   };
 
   #onInput = (e) => {
-    this.#handleInput(e);
-    this.#scheduleNormalize();
+    try {
+      this.#handleInput(e);
+      this.#scheduleNormalize();
+    } catch (err) {
+      console.error('RTEditor input error:', err);
+      this.#emit('error', err);
+    }
   };
 
   #scheduleNormalize() {

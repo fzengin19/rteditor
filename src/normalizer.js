@@ -209,6 +209,16 @@ function sanitizeAttributes(el, tag) {
       continue;
     }
 
+    if (tag === 'img' && name === 'style') {
+      const sanitizedStyle = sanitizeImageStyle(attr.value);
+      if (sanitizedStyle) {
+        el.setAttribute('style', sanitizedStyle);
+      } else {
+        el.removeAttribute('style');
+      }
+      continue;
+    }
+
     // Validate URL schemes for href/src
     if (name === 'href' || name === 'src') {
       const value = attr.value.trim();
@@ -218,6 +228,28 @@ function sanitizeAttributes(el, tag) {
       }
     }
   }
+}
+
+function sanitizeImageStyle(style) {
+  if (!style) return '';
+
+  const allowed = [];
+  const declarations = style.split(';');
+
+  for (const declaration of declarations) {
+    const [rawProp, ...rawValueParts] = declaration.split(':');
+    if (!rawProp || rawValueParts.length === 0) continue;
+
+    const prop = rawProp.trim().toLowerCase();
+    const value = rawValueParts.join(':').trim().toLowerCase();
+
+    if (prop !== 'width' && prop !== 'height') continue;
+    if (!/^(auto|\d+(?:\.\d+)?(?:px|%)?)$/i.test(value)) continue;
+
+    allowed.push(`${prop}: ${value};`);
+  }
+
+  return allowed.join(' ');
 }
 
 /**

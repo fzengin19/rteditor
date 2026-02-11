@@ -125,4 +125,18 @@ describe('sanitizeHTML', () => {
     expect(result).toContain('alt="Photo"');
     expect(result).toContain('<p'); // Root level img is wrapped in p
   });
+
+  it('allows only width/height in img style attribute (BUG-017)', () => {
+    const input = '<img src="photo.jpg" style="width: 120px; height: auto; position: fixed; background: url(x)">';
+    const result = sanitizeHTML(input);
+    expect(result).toContain('style="width: 120px; height: auto;"');
+    expect(result).not.toContain('position: fixed');
+    expect(result).not.toContain('background:');
+  });
+
+  it('removes img style when no allowed declarations remain (BUG-017)', () => {
+    const input = '<img src="photo.jpg" style="background: url(javascript:alert(1))">';
+    const result = sanitizeHTML(input);
+    expect(result).not.toContain('style=');
+  });
 });

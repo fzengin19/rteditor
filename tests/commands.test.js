@@ -295,6 +295,33 @@ describe('command registry', () => {
       expect(code).not.toBeNull();
       expect(code.textContent).toBe('snippet');
     });
+
+    it('unwraps lists and preserves structure (P1-001)', () => {
+      // <ul><li>Item 1</li><li>Item 2 (Selected)</li><li>Item 3</li></ul>
+      root.innerHTML = '<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>';
+      const li2 = root.querySelector('ul').children[1];
+      const range = document.createRange();
+      range.selectNodeContents(li2);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      registry.exec('clearFormatting');
+
+      // Expected:
+      // <ul><li>Item 1</li></ul>
+      // <p>Item 2</p>
+      // <ul><li>Item 3</li></ul>
+      
+      const children = root.children;
+      expect(children.length).toBe(3);
+      expect(children[0].tagName).toBe('UL');
+      expect(children[0].textContent).toBe('Item 1');
+      expect(children[1].tagName).toBe('P');
+      expect(children[1].textContent).toBe('Item 2');
+      expect(children[2].tagName).toBe('UL');
+      expect(children[2].textContent).toBe('Item 3');
+    });
   });
 
   describe('command: image', () => {

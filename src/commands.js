@@ -444,7 +444,52 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
       };
 
       clearInline(block, p);
-      block.parentNode.replaceChild(p, block);
+
+      const parent = block.parentNode;
+      if (block.tagName === 'LI' && parent && ['UL', 'OL'].includes(parent.tagName)) {
+        // Split list logic for LI elements to ensure valid HTML
+        const list = parent;
+        const container = list.parentNode;
+        
+        // 1. Move everything after current LI to a new list
+        const nextSiblings = [];
+        let next = block.nextSibling;
+        while (next) {
+          nextSiblings.push(next);
+          next = next.nextSibling;
+        }
+        
+        // 2. Insert the paragraph after the current list
+        if (container) {
+          container.insertBefore(p, list.nextSibling);
+        } else {
+          // Fallback if list has no parent (unlikely for editor root)
+          list.after(p);
+        }
+        
+        // 3. Create new list for next siblings if any
+        if (nextSiblings.length > 0) {
+          const newList = document.createElement(list.tagName);
+          newList.className = list.className;
+          nextSiblings.forEach(sib => newList.appendChild(sib));
+          
+          if (container) {
+            container.insertBefore(newList, p.nextSibling);
+          } else {
+            p.after(newList);
+          }
+        }
+        
+        // 4. Remove the LI from original list
+        block.remove();
+        
+        // 5. Cleanup empty original list
+        if (list.children.length === 0) {
+          list.remove();
+        }
+      } else {
+        block.parentNode.replaceChild(p, block);
+      }
     });
 
     root.normalize();

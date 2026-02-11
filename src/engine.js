@@ -507,5 +507,9 @@ export class EditorEngine {
     this.#root.removeAttribute('role');
     this.#root.removeAttribute('aria-multiline');
     this.#listeners = {}; // Clear internal emitter listeners
+
+    if (!document.querySelector('[contenteditable]')) {
+      document.getElementById('rt-editor-engine-styles')?.remove();
+    }
   }
 }

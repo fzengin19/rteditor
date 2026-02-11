@@ -6,6 +6,8 @@ describe('Resource Cleanup (§4.1, §4.2)', () => {
 
   beforeEach(() => {
     document.body.innerHTML = '';
+    document.getElementById('rt-editor-placeholder-styles')?.remove();
+    document.getElementById('rt-editor-engine-styles')?.remove();
     container = document.createElement('div');
     container.id = 'editor';
     document.body.appendChild(container);
@@ -62,5 +64,17 @@ describe('Resource Cleanup (§4.1, §4.2)', () => {
     editor.destroy();
     
     expect(document.querySelector('.border-blue-500')).toBeNull(); // Overlay removed
+  });
+
+  it('removes global style tags after last instance is destroyed (BUG-013)', () => {
+    const editor = new RichTextEditor('#editor');
+
+    expect(document.getElementById('rt-editor-placeholder-styles')).not.toBeNull();
+    expect(document.getElementById('rt-editor-engine-styles')).not.toBeNull();
+
+    editor.destroy();
+
+    expect(document.getElementById('rt-editor-placeholder-styles')).toBeNull();
+    expect(document.getElementById('rt-editor-engine-styles')).toBeNull();
   });
 });

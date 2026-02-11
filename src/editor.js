@@ -249,5 +249,9 @@ export class RichTextEditor {
     this.#engine.destroy();
     this.#toolbar.destroy();
     this.#wrapper.remove();
+
+    if (!document.querySelector('[contenteditable][data-placeholder]')) {
+      document.getElementById('rt-editor-placeholder-styles')?.remove();
+    }
   }
 }

@@ -6,6 +6,8 @@ describe('Multi-instance Isolation (§1.2)', () => {
 
   beforeEach(() => {
     document.body.innerHTML = '';
+    document.getElementById('rt-editor-placeholder-styles')?.remove();
+    document.getElementById('rt-editor-engine-styles')?.remove();
     container1 = document.createElement('div');
     container1.id = 'editor1';
     container2 = document.createElement('div');
@@ -67,5 +69,21 @@ describe('Multi-instance Isolation (§1.2)', () => {
 
     expect(editor1.getHTML()).toContain('text-4xl font-bold');
     expect(editor2.getHTML()).toContain('h1-custom');
+  });
+
+  it('keeps global styles until the last instance is destroyed (BUG-013)', () => {
+    const editor1 = new RichTextEditor('#editor1');
+    const editor2 = new RichTextEditor('#editor2');
+
+    expect(document.getElementById('rt-editor-placeholder-styles')).not.toBeNull();
+    expect(document.getElementById('rt-editor-engine-styles')).not.toBeNull();
+
+    editor1.destroy();
+    expect(document.getElementById('rt-editor-placeholder-styles')).not.toBeNull();
+    expect(document.getElementById('rt-editor-engine-styles')).not.toBeNull();
+
+    editor2.destroy();
+    expect(document.getElementById('rt-editor-placeholder-styles')).toBeNull();
+    expect(document.getElementById('rt-editor-engine-styles')).toBeNull();
   });
 });

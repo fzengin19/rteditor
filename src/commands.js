@@ -60,6 +60,14 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     return hasText;
   }
 
+  function getSelectedLeafBlocks(root, range) {
+    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
+    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
+    return selectedBlocks.filter(block => {
+      return !selectedBlocks.some(other => block !== other && block.contains(other));
+    });
+  }
+
   // --- INLINE COMMANDS ---
 
   function toggleInline(tagName) {
@@ -124,19 +132,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const range = sel.getRangeAt(0);
     const saved = saveSelection(root);
 
-    // Identify all blocks in the editor
-    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
-    
-    // Filter to those that intersect the selection
-    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
-
-    if (selectedBlocks.length === 0) return;
-
-    // Filter to target only "leaf" blocks in the selection (innermost blocks)
-    // A block is a "leaf" if none of its descendants are also in selectedBlocks
-    const leafBlocks = selectedBlocks.filter(block => {
-      return !selectedBlocks.some(other => block !== other && block.contains(other));
-    });
+    const leafBlocks = getSelectedLeafBlocks(root, range);
 
     if (leafBlocks.length === 0) return;
 
@@ -173,18 +169,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const range = sel.getRangeAt(0);
     const saved = saveSelection(root);
 
-    // Identify all blocks in the editor
-    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
-    
-    // Filter to those that intersect the selection
-    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
-
-    if (selectedBlocks.length === 0) return;
-
-    // Filter to target only "leaf" blocks in the selection (innermost blocks)
-    const leafBlocks = selectedBlocks.filter(block => {
-      return !selectedBlocks.some(other => block !== other && block.contains(other));
-    });
+    const leafBlocks = getSelectedLeafBlocks(root, range);
 
     if (leafBlocks.length === 0) return;
 
@@ -256,18 +241,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
     const range = sel.getRangeAt(0);
     const saved = saveSelection(root);
 
-    // Identify all blocks in the editor
-    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
-    
-    // Filter to those that intersect the selection
-    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
-
-    if (selectedBlocks.length === 0) return;
-
-    // Filter to target only "leaf" blocks in the selection (innermost blocks)
-    const leafBlocks = selectedBlocks.filter(block => {
-      return !selectedBlocks.some(other => block !== other && block.contains(other));
-    });
+    const leafBlocks = getSelectedLeafBlocks(root, range);
 
     if (leafBlocks.length === 0) return;
 
@@ -422,15 +396,7 @@ export function createCommandRegistry(root, classMap = CLASS_MAP) {
 
     const saved = saveSelection(root);
 
-    // Identify all blocks in the selection
-    const allBlocks = Array.from(root.querySelectorAll(BLOCK_TAGS.join(',')));
-    const selectedBlocks = allBlocks.filter(block => range.intersectsNode(block));
-
-    // Filter to leaf blocks
-    const leafBlocks = selectedBlocks.filter(block => {
-      return !selectedBlocks.some(other => block !== other && block.contains(other));
-    });
-
+    const leafBlocks = getSelectedLeafBlocks(root, range);
     if (leafBlocks.length === 0) return;
 
     leafBlocks.forEach(block => {

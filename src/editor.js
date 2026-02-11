@@ -15,6 +15,7 @@ export class RichTextEditor {
   #classMap;
   #currentResizer = null;
   #justResized = false;
+  #resetResizeGuardRaf = 0;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -130,9 +131,15 @@ export class RichTextEditor {
       if (this.#currentResizer) {
         this.#currentResizer.destroy();
         this.#currentResizer = null;
-        // Set flag to prevent immediate re-creation on the trailing 'click' event
+
         this.#justResized = true;
-        setTimeout(() => { this.#justResized = false; }, 100);
+        if (this.#resetResizeGuardRaf) cancelAnimationFrame(this.#resetResizeGuardRaf);
+        this.#resetResizeGuardRaf = requestAnimationFrame(() => {
+          this.#resetResizeGuardRaf = requestAnimationFrame(() => {
+            this.#justResized = false;
+            this.#resetResizeGuardRaf = 0;
+          });
+        });
       }
     });
   }
@@ -235,6 +242,7 @@ export class RichTextEditor {
     document.removeEventListener('selectionchange', this._selectionHandler);
     document.removeEventListener('mousedown', this._resizerCleanup);
     this.#engine.contentEl.removeEventListener('click', this.#onClick);
+    if (this.#resetResizeGuardRaf) cancelAnimationFrame(this.#resetResizeGuardRaf);
     
     if (this.#currentResizer) {
       this.#currentResizer.destroy();

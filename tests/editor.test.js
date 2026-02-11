@@ -98,4 +98,43 @@ describe('RichTextEditor Integration', () => {
     expect(editor.getText().trim()).toBe('Initial');
     editor.destroy();
   });
+
+  it('uses rAF-based resizer guard instead of fixed timeout (BUG-015)', () => {
+    const rafQueue = [];
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+
+    const editor = new RichTextEditor(container);
+    editor.setHTML('<p><img src="https://example.com/x.png" alt="x"></p>');
+
+    let img = container.querySelector('img');
+    img.click();
+    expect(container.querySelector('[data-rt-resizer="true"]')).not.toBeNull();
+
+    editor.setHTML('<p><img src="https://example.com/x.png" alt="x"></p>');
+    img = container.querySelector('img');
+
+    img.click();
+    expect(container.querySelector('[data-rt-resizer="true"]')).toBeNull();
+
+    const first = rafQueue.shift();
+    expect(first).toBeTypeOf('function');
+    first(0);
+
+    const second = rafQueue.shift();
+    expect(second).toBeTypeOf('function');
+    second(0);
+
+    img.click();
+    expect(container.querySelector('[data-rt-resizer="true"]')).not.toBeNull();
+
+    expect(rafSpy).toHaveBeenCalled();
+
+    editor.destroy();
+    cancelSpy.mockRestore();
+    rafSpy.mockRestore();
+  });
 });

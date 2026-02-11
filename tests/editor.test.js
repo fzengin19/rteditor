@@ -68,9 +68,16 @@ describe('RichTextEditor Integration', () => {
     editor.destroy();
   });
 
-  it('cleans up on destroy', () => {
-    const editor = new RichTextEditor(container);
+  it('cleans up on destroy including placeholder listeners (BUG-004)', () => {
+    const editor = new RichTextEditor(container, { placeholder: 'Test' });
+    const contentEl = container.querySelector('[contenteditable]');
+    const spy = vi.spyOn(contentEl, 'removeEventListener');
+    
     editor.destroy();
+    
+    expect(spy).toHaveBeenCalledWith('input', expect.any(Function));
+    expect(spy).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(spy).toHaveBeenCalledWith('blur', expect.any(Function));
     expect(container.querySelector('[contenteditable]')).toBeNull();
     expect(container.querySelector('[role="toolbar"]')).toBeNull();
   });

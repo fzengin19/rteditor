@@ -155,11 +155,13 @@ export class RichTextEditor {
     }
   };
 
+  #placeholderHandler = null;
+
   #setupPlaceholder() {
     const contentEl = this.#engine.contentEl;
     const placeholder = this.#options.placeholder;
 
-    const updatePlaceholder = () => {
+    this.#placeholderHandler = () => {
       const isEmpty = !contentEl.textContent.trim() && !contentEl.querySelector('img');
       contentEl.setAttribute('data-placeholder', isEmpty ? placeholder : '');
     };
@@ -183,10 +185,10 @@ export class RichTextEditor {
       document.head.appendChild(style);
     }
 
-    contentEl.addEventListener('input', updatePlaceholder);
-    contentEl.addEventListener('focus', updatePlaceholder);
-    contentEl.addEventListener('blur', updatePlaceholder);
-    updatePlaceholder();
+    contentEl.addEventListener('input', this.#placeholderHandler);
+    contentEl.addEventListener('focus', this.#placeholderHandler);
+    contentEl.addEventListener('blur', this.#placeholderHandler);
+    this.#placeholderHandler();
   }
 
   /** Get the current HTML content (normalized to Tailwind classes). */
@@ -235,6 +237,12 @@ export class RichTextEditor {
     
     if (this.#currentResizer) {
       this.#currentResizer.destroy();
+    }
+
+    if (this.#placeholderHandler) {
+      this.#engine.contentEl.removeEventListener('input', this.#placeholderHandler);
+      this.#engine.contentEl.removeEventListener('focus', this.#placeholderHandler);
+      this.#engine.contentEl.removeEventListener('blur', this.#placeholderHandler);
     }
 
     this.#engine.destroy();

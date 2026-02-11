@@ -362,15 +362,70 @@ export class EditorEngine {
 
     const temp = document.createElement('div');
     temp.innerHTML = html;
+
+    const hasBlock = Array.from(temp.childNodes).some(n => 
+      n.nodeType === 1 && /^(P|DIV|H[1-6]|LI|BLOCKQUOTE|PRE|UL|OL)$/i.test(n.tagName)
+    );
+
+    let block = range.startContainer;
+    while (block && block.parentNode !== this.#root) {
+      if (block === this.#root) break;
+      block = block.parentNode;
+    }
+
+    if (hasBlock && block && block.parentNode === this.#root) {
+      const afterRange = document.createRange();
+      afterRange.setStart(range.endContainer, range.endOffset);
+      afterRange.setEndAfter(block.lastChild || block);
+      const afterContent = afterRange.extractContents();
+      
+      const afterBlock = block.cloneNode(false);
+      if (afterContent.childNodes.length > 0) afterBlock.appendChild(afterContent);
+      if (!afterBlock.textContent.trim() && !afterBlock.querySelector('br')) afterBlock.innerHTML = '<br>';
+      
+      block.parentNode.insertBefore(afterBlock, block.nextSibling);
+
+      const newNodes = [];
+      while (temp.firstChild) {
+        const child = temp.firstChild;
+        newNodes.push(child);
+        block.parentNode.insertBefore(child, afterBlock);
+      }
+
+      if (!block.textContent.trim() && !block.querySelector('br')) block.innerHTML = '<br>';
+
+      const lastInserted = newNodes[newNodes.length - 1];
+      if (lastInserted) {
+        const newRange = document.createRange();
+        if (lastInserted.nodeType === 1) {
+           newRange.selectNodeContents(lastInserted);
+           newRange.collapse(false);
+        } else {
+           newRange.setStartAfter(lastInserted);
+           newRange.collapse(true);
+        }
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      }
+      return;
+    }
+
     const fragment = document.createDocumentFragment();
     while (temp.firstChild) fragment.appendChild(temp.firstChild);
     const lastChild = fragment.lastChild;
     range.insertNode(fragment);
+    
     if (lastChild) {
-      range.setStartAfter(lastChild);
-      range.collapse(true);
+      const newRange = document.createRange();
+      if (lastChild.nodeType === 1 && /^(P|DIV|H[1-6]|LI|BLOCKQUOTE|PRE)$/i.test(lastChild.tagName)) {
+        newRange.selectNodeContents(lastChild);
+        newRange.collapse(false);
+      } else {
+        newRange.setStartAfter(lastChild);
+        newRange.collapse(true);
+      }
       sel.removeAllRanges();
-      sel.addRange(range);
+      sel.addRange(newRange);
     }
   }
 

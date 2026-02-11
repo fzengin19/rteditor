@@ -186,6 +186,36 @@ describe('EditorEngine', () => {
     expect(curRange.collapsed).toBe(true);
   });
 
+  it('positions cursor inside last block after HTML paste (P1-003)', async () => {
+    const engine = new EditorEngine(root);
+    root.innerHTML = '<p>Start</p>';
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(root.firstChild);
+    range.collapse(false);
+    sel.addRange(range);
+    
+    const event = new Event('paste', {
+      bubbles: true,
+      cancelable: true
+    });
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        getData: (type) => (type === 'text/html' ? '<p>Inserted</p>' : '')
+      }
+    });
+    
+    root.dispatchEvent(event);
+    
+    const newSel = window.getSelection();
+    const insertedP = Array.from(root.children).find(n => n.textContent === 'Inserted');
+    expect(insertedP.tagName).toBe('P');
+    expect(insertedP.textContent).toBe('Inserted');
+    expect(newSel.anchorNode).toBe(insertedP);
+    expect(newSel.anchorOffset).toBe(1);
+  });
+
   it('debounces normalization instead of normalizing every input event (PERF-001)', () => {
     vi.useFakeTimers();
     const engine = new EditorEngine(root);

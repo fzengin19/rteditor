@@ -5,6 +5,8 @@ export class History {
   #index = -1;
   #root;
   #maxSize;
+  #lastReconstructedHTML = null;
+  #lastReconstructedIndex = -1;
 
   constructor(root, maxSize = 100) {
     this.#root = root;
@@ -33,7 +35,14 @@ export class History {
     // ANALYSIS 3.4: Skip if content is identical to last snapshot
     if (this.#stack.length > 0 && this.#index >= 0) {
       const lastEntry = this.#stack[this.#index];
-      const lastHTML = lastEntry.fullHTML || this.#reconstructHTML(this.#index);
+      let lastHTML;
+      if (lastEntry.fullHTML) {
+        lastHTML = lastEntry.fullHTML;
+      } else if (this.#lastReconstructedIndex === this.#index && this.#lastReconstructedHTML !== null) {
+        lastHTML = this.#lastReconstructedHTML;
+      } else {
+        lastHTML = this.#reconstructHTML(this.#index);
+      }
       if (lastHTML === html) return;
     }
 
@@ -120,6 +129,11 @@ export class History {
   }
 
   #reconstructHTML(index) {
+    // PERF-003: Return cached value if available
+    if (this.#lastReconstructedIndex === index && this.#lastReconstructedHTML !== null) {
+      return this.#lastReconstructedHTML;
+    }
+
     // Traverse back to find the nearest full snapshot
     let currentHTML = '';
     let i = index;
@@ -138,6 +152,10 @@ export class History {
     for (const delta of chain) {
       currentHTML = currentHTML.slice(0, delta.start) + delta.text + currentHTML.slice(delta.endOld);
     }
+
+    // PERF-003: Cache the result
+    this.#lastReconstructedHTML = currentHTML;
+    this.#lastReconstructedIndex = index;
     
     return currentHTML;
   }

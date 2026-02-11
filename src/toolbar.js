@@ -50,7 +50,6 @@ export class Toolbar {
   #container;
   #editor;          // editor instance (has exec, contentEl)
   #buttons = {};    // name → { el, def }
-  #dropdown = null; // heading dropdown element
   #promptOverlay = null;
   #dropdownCleanupHandlers = [];
 
@@ -367,9 +366,6 @@ export class Toolbar {
       this.#container.parentNode.removeChild(this.#container);
     }
     this.#buttons = {};
-    if (this.#dropdown && this.#dropdown.parentNode) {
-       this.#dropdown.parentNode.removeChild(this.#dropdown);
-    }
 
     this.#dropdownCleanupHandlers.forEach(handler => {
       document.removeEventListener('click', handler);

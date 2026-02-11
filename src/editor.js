@@ -17,6 +17,8 @@ export class RichTextEditor {
   #justResized = false;
   #resetResizeGuardRaf = 0;
   #destroyed = false;
+  #selectionHandler = null;
+  #resizerCleanup = null;
 
   /**
    * @param {string|HTMLElement} target - CSS selector or DOM element to attach to
@@ -102,14 +104,14 @@ export class RichTextEditor {
     // Toolbar state tracking: update toolbar highlights on selection change
     // Using a bound listener to allow cleanup, throttled with rAF
     this._selectionRaf = null;
-    this._selectionHandler = () => {
+    this.#selectionHandler = () => {
       if (document.activeElement !== this.#engine.contentEl) return;
       if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
       this._selectionRaf = requestAnimationFrame(() => {
         this.#toolbar.updateState(this.#engine.contentEl);
       });
     };
-    document.addEventListener('selectionchange', this._selectionHandler);
+    document.addEventListener('selectionchange', this.#selectionHandler);
 
     this.#setupResizer();
   }
@@ -120,13 +122,13 @@ export class RichTextEditor {
     this.#engine.contentEl.addEventListener('click', this.#onClick);
 
     // Cleanup resizer when user clicks outside
-    this._resizerCleanup = (e) => {
+    this.#resizerCleanup = (e) => {
       if (this.#currentResizer && !this.#engine.contentEl.contains(e.target)) {
         this.#currentResizer.destroy();
         this.#currentResizer = null;
       }
     };
-    document.addEventListener('mousedown', this._resizerCleanup);
+    document.addEventListener('mousedown', this.#resizerCleanup);
 
     // Handle commands that might replace content or state restores
     this.#engine.on('change', () => {
@@ -244,8 +246,8 @@ export class RichTextEditor {
     this.#destroyed = true;
 
     if (this._selectionRaf) cancelAnimationFrame(this._selectionRaf);
-    document.removeEventListener('selectionchange', this._selectionHandler);
-    document.removeEventListener('mousedown', this._resizerCleanup);
+    document.removeEventListener('selectionchange', this.#selectionHandler);
+    document.removeEventListener('mousedown', this.#resizerCleanup);
     this.#engine.contentEl.removeEventListener('click', this.#onClick);
     if (this.#resetResizeGuardRaf) cancelAnimationFrame(this.#resetResizeGuardRaf);
     
